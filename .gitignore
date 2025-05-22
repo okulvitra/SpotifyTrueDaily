@@ -1,0 +1,17 @@
+# Environnement virtuel Python
+.venv/
+venv/
+__pycache__/
+*.py[cod] # .pyc, .pyo, .pyd
+
+# Fichier cache de Spotipy (contient les tokens d'authentification)
+.cache*
+
+# Fichiers spécifiques aux IDE
+.vscode/
+.idea/
+
+# Fichiers de configuration contenant des secrets (voir ci-dessous)
+config.py
+secrets.py
+*.env
