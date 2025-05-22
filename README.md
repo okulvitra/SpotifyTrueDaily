@@ -123,15 +123,15 @@ Après la configuration et la première authentification, vous pouvez lancer le 
 
 ```bash
 python playlist_manager.py
-
+```
 Le script effectuera une mise à jour de la playlist "Journalière".
 
 ## Optionnel : Automatisation avec le Planificateur de Tâches Windows
 Pour que le script mette à jour votre playlist automatiquement tous les jours sans intervention manuelle, vous pouvez utiliser le Planificateur de tâches Windows.
 
-    Créer un fichier batch (run_playlist_updater.bat) :
+1.  Créer un fichier batch (run_playlist_updater.bat) :
     À la racine de votre projet, créez un fichier nommé run_playlist_updater.bat avec le contenu suivant (adaptez les chemins si votre projet n'est pas à C:\Users\Name\Desktop\spotiapp) :
-    ```bash
+```bash
     @echo off
 REM Change directory to the script's location
 cd /D "C:\Users\M\Desktop\spotiapp"
@@ -145,18 +145,18 @@ echo Running Python script...
 python "playlist_manager.py"
 
 echo Script finished.
-
-    Configurer la Tâche Planifiée :
-        Ouvrez le Planificateur de tâches sur Windows.
-        Cliquez sur "Créer une tâche de base...".
-        Nom : Mise à jour Playlist Spotify Journalière (ou similaire).
-        Déclencheur : Choisissez "Tous les jours" et réglez l'heure de début souhaitée (par exemple, 06:00:00 ou 22:00:00). Vous pourrez ajouter d'autres déclencheurs plus tard si besoin.
-        Action : Choisissez "Démarrer un programme".
-        Programme/script : Indiquez le chemin complet vers votre fichier run_playlist_updater.bat.
-        Démarrer dans (facultatif) : Indiquez le chemin de votre dossier projet (ex: C:\Users\M\Desktop\spotiapp\).
-        Suivez les instructions pour finaliser la création.
-        Dans les propriétés avancées de la tâche (cochez la case "Ouvrir les propriétés..." à la fin de l'assistant), vous pouvez configurer des options comme "Exécuter même si l'utilisateur n'est pas connecté" (nécessitera votre mot de passe Windows) et "Exécuter avec les autorisations maximales".
+```
+2.  Configurer la Tâche Planifiée :
+* Ouvrez le Planificateur de tâches sur Windows.
+* Cliquez sur "Créer une tâche de base...".
+* Nom : Mise à jour Playlist Spotify Journalière (ou similaire).
+* Déclencheur : Choisissez "Tous les jours" et réglez l'heure de début souhaitée (par exemple, 06:00:00 ou 22:00:00). Vous pourrez ajouter d'autres déclencheurs plus tard si besoin.
+* Action : Choisissez "Démarrer un programme".
+* Programme/script : Indiquez le chemin complet vers votre fichier run_playlist_updater.bat.
+* Démarrer dans (facultatif) : Indiquez le chemin de votre dossier projet (ex: C:\Users\M\Desktop\spotiapp\).
+* Suivez les instructions pour finaliser la création.
+* Dans les propriétés avancées de la tâche (cochez la case "Ouvrir les propriétés..." à la fin de l'assistant), vous pouvez configurer des options comme "Exécuter même si l'utilisateur n'est pas connecté" (nécessitera votre mot de passe Windows) et "Exécuter avec les autorisations maximales".
 
 ## Disclaimer
 
-Ce script a été développé avec l'assistance de l'IA Google Gemini (potentiellement modèle Pro 1.5, selon la version utilisée lors de nos échanges), dans un esprit de "vibe coding" et d'exploration collaborative. L'IA a aidé à la structuration du code, au débogage, à l'explication de concepts et à la rédaction de documentation.
+Ce script a été développé avec l'assistance de Google Gemini 2.5 Pro dans un esprit de "vibe coding" et d'exploration collaborative. L'IA a aidé à la structuration du code, au débogage, à l'explication de concepts et à la rédaction de documentation.
