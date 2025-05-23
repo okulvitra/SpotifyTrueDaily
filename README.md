@@ -161,9 +161,9 @@ echo Script finished.
 
 Ce script a été développé avec l'assistance de Google Gemini 2.5 Pro dans un esprit de "vibe coding" et d'exploration collaborative. L'IA a aidé à la structuration du code, au débogage, à l'explication de concepts et à la rédaction de documentation.
 
-#English
+# English
 
-# SpotifyTrueDaily: Your Personalized and Automated Daily Spotify Playlist
+# SpotifyTrueDaily: Personalized "Daily Drive" playlist
 
 SpotifyTrueDaily is a Python script designed to create and update a personal Spotify playlist named "Journalière" (Daily) on a daily basis. This playlist is a dynamic mix of your favorite podcasts (featuring the latest episodes), your recent and most frequent music listens, random discoveries from your library, and new music suggestions provided by the SoundStat API. The content is then intelligently interleaved for a varied listening experience.
 
