@@ -133,18 +133,38 @@ Pour que le script mette à jour votre playlist automatiquement tous les jours s
     À la racine de votre projet, créez un fichier nommé run_playlist_updater.bat avec le contenu suivant (adaptez les chemins si votre projet n'est pas à C:\Users\Name\Desktop\spotiapp) :
 ```bash
     @echo off
-REM Change directory to the script's location
-cd /D "C:\Users\M\Desktop\spotiapp"
+echo Starting Spotify Playlist Updater script...
 
-REM Activate virtual environment
+REM This script assumes it is being run with the project's root directory
+REM as the current working directory.
+REM For Windows Task Scheduler, ensure the "Start in" directory is set
+REM to the full path of your project folder (e.g., C:\Users\YourName\Desktop\spotiapp).
+
+REM Activate virtual environment (relative path from project root)
 echo Activating virtual environment...
+if not exist ".venv\Scripts\activate.bat" (
+    echo ERROR: Virtual environment activate.bat not found in .venv\Scripts.
+    echo Please ensure this batch file is in the project root,
+    echo and the Task Scheduler's "Start in" directory is set correctly.
+    pause
+    exit /b 1
+)
 call ".venv\Scripts\activate.bat"
 
-REM Run the Python script
+REM Run the Python script (relative path from project root)
 echo Running Python script...
+if not exist "playlist_manager.py" (
+    echo ERROR: playlist_manager.py not found.
+    echo Please ensure this batch file is in the project root.
+    pause
+    exit /b 1
+)
 python "playlist_manager.py"
 
 echo Script finished.
+REM Optional: To see output when run manually, uncomment the next line.
+REM For scheduled tasks, keep it commented or remove it.
+REM pause
 ```
 2.  Configurer la Tâche Planifiée :
 * Ouvrez le Planificateur de tâches sur Windows.
@@ -297,18 +317,38 @@ Create a batch file (run_playlist_updater.bat):
     In the root of your project, create a file named run_playlist_updater.bat with the following content (adjust paths if your project is not at C:\Users\YourUser\Desktop\spotiapp):
 ```bash
 @echo off
-REM Change directory to the script's location
-cd /D "C:\Path\To\Your\Project\spotiapp"
+echo Starting Spotify Playlist Updater script...
 
-REM Activate virtual environment
+REM This script assumes it is being run with the project's root directory
+REM as the current working directory.
+REM For Windows Task Scheduler, ensure the "Start in" directory is set
+REM to the full path of your project folder (e.g., C:\Users\YourName\Desktop\spotiapp).
+
+REM Activate virtual environment (relative path from project root)
 echo Activating virtual environment...
+if not exist ".venv\Scripts\activate.bat" (
+    echo ERROR: Virtual environment activate.bat not found in .venv\Scripts.
+    echo Please ensure this batch file is in the project root,
+    echo and the Task Scheduler's "Start in" directory is set correctly.
+    pause
+    exit /b 1
+)
 call ".venv\Scripts\activate.bat"
 
-REM Run the Python script
+REM Run the Python script (relative path from project root)
 echo Running Python script...
+if not exist "playlist_manager.py" (
+    echo ERROR: playlist_manager.py not found.
+    echo Please ensure this batch file is in the project root.
+    pause
+    exit /b 1
+)
 python "playlist_manager.py"
 
 echo Script finished.
+REM Optional: To see output when run manually, uncomment the next line.
+REM For scheduled tasks, keep it commented or remove it.
+REM pause
 ```
 2.  Configure the Scheduled Task:
 *Open Task Scheduler on Windows.
