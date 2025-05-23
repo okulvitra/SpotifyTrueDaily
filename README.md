@@ -1,4 +1,4 @@
-# SpotifyTrueDaily : Votre Playlist Spotify Journalière Personnalisée et Automatisée
+# SpotifyTrueDaily : Playlist "Mon Daily" plus personnalisable
 
 SpotifyTrueDaily est un script Python conçu pour créer et mettre à jour quotidiennement une playlist Spotify personnelle nommée "Journalière". Cette playlist est un mélange dynamique de vos podcasts préférés (avec les derniers épisodes), de vos écoutes musicales récentes et récurrentes, de découvertes aléatoires issues de votre bibliothèque, ainsi que de nouvelles suggestions musicales fournies par l'API SoundStat. Le contenu est ensuite intelligemment entrelacé pour une expérience d'écoute variée.
 
@@ -123,15 +123,15 @@ Après la configuration et la première authentification, vous pouvez lancer le 
 
 ```bash
 python playlist_manager.py
-
+```
 Le script effectuera une mise à jour de la playlist "Journalière".
 
 ## Optionnel : Automatisation avec le Planificateur de Tâches Windows
 Pour que le script mette à jour votre playlist automatiquement tous les jours sans intervention manuelle, vous pouvez utiliser le Planificateur de tâches Windows.
 
-    Créer un fichier batch (run_playlist_updater.bat) :
+1.  Créer un fichier batch (run_playlist_updater.bat) :
     À la racine de votre projet, créez un fichier nommé run_playlist_updater.bat avec le contenu suivant (adaptez les chemins si votre projet n'est pas à C:\Users\Name\Desktop\spotiapp) :
-    ```bash
+```bash
     @echo off
 REM Change directory to the script's location
 cd /D "C:\Users\M\Desktop\spotiapp"
@@ -145,18 +145,182 @@ echo Running Python script...
 python "playlist_manager.py"
 
 echo Script finished.
-
-    Configurer la Tâche Planifiée :
-        Ouvrez le Planificateur de tâches sur Windows.
-        Cliquez sur "Créer une tâche de base...".
-        Nom : Mise à jour Playlist Spotify Journalière (ou similaire).
-        Déclencheur : Choisissez "Tous les jours" et réglez l'heure de début souhaitée (par exemple, 06:00:00 ou 22:00:00). Vous pourrez ajouter d'autres déclencheurs plus tard si besoin.
-        Action : Choisissez "Démarrer un programme".
-        Programme/script : Indiquez le chemin complet vers votre fichier run_playlist_updater.bat.
-        Démarrer dans (facultatif) : Indiquez le chemin de votre dossier projet (ex: C:\Users\M\Desktop\spotiapp\).
-        Suivez les instructions pour finaliser la création.
-        Dans les propriétés avancées de la tâche (cochez la case "Ouvrir les propriétés..." à la fin de l'assistant), vous pouvez configurer des options comme "Exécuter même si l'utilisateur n'est pas connecté" (nécessitera votre mot de passe Windows) et "Exécuter avec les autorisations maximales".
+```
+2.  Configurer la Tâche Planifiée :
+* Ouvrez le Planificateur de tâches sur Windows.
+* Cliquez sur "Créer une tâche de base...".
+* Nom : Mise à jour Playlist Spotify Journalière (ou similaire).
+* Déclencheur : Choisissez "Tous les jours" et réglez l'heure de début souhaitée (par exemple, 06:00:00 ou 22:00:00). Vous pourrez ajouter d'autres déclencheurs plus tard si besoin.
+* Action : Choisissez "Démarrer un programme".
+* Programme/script : Indiquez le chemin complet vers votre fichier run_playlist_updater.bat.
+* Démarrer dans (facultatif) : Indiquez le chemin de votre dossier projet (ex: C:\Users\M\Desktop\spotiapp\).
+* Suivez les instructions pour finaliser la création.
+* Dans les propriétés avancées de la tâche (cochez la case "Ouvrir les propriétés..." à la fin de l'assistant), vous pouvez configurer des options comme "Exécuter même si l'utilisateur n'est pas connecté" (nécessitera votre mot de passe Windows) et "Exécuter avec les autorisations maximales".
 
 ## Disclaimer
 
-Ce script a été développé avec l'assistance de l'IA Google Gemini (potentiellement modèle Pro 1.5, selon la version utilisée lors de nos échanges), dans un esprit de "vibe coding" et d'exploration collaborative. L'IA a aidé à la structuration du code, au débogage, à l'explication de concepts et à la rédaction de documentation.
+Ce script a été développé avec l'assistance de Google Gemini 2.5 Pro dans un esprit de "vibe coding" et d'exploration collaborative. L'IA a aidé à la structuration du code, au débogage, à l'explication de concepts et à la rédaction de documentation.
+
+#English
+
+# SpotifyTrueDaily: Your Personalized and Automated Daily Spotify Playlist
+
+SpotifyTrueDaily is a Python script designed to create and update a personal Spotify playlist named "Journalière" (Daily) on a daily basis. This playlist is a dynamic mix of your favorite podcasts (featuring the latest episodes), your recent and most frequent music listens, random discoveries from your library, and new music suggestions provided by the SoundStat API. The content is then intelligently interleaved for a varied listening experience.
+
+## Features
+
+* **Automatic Creation/Update:** Generates a "Journalière" playlist or refreshes its content if it already exists.
+* **Up-to-Date Podcasts:** Integrates the latest published episodes of your followed Spotify podcasts.
+* **Personalized Music:**
+    * Includes your most recently played tracks.
+    * Adds your favorite (top) tracks.
+    * Suggests random tracks from your Spotify library.
+* **New Discoveries:** Uses the [SoundStat.info](http://soundstat.info/) API to suggest new tracks based on your recent listens.
+* **Interleaved Content:** Organizes the playlist with an alternation of podcasts and music (default: 1 podcast followed by 3 songs).
+* **Flexible Scheduling:** Designed to be run daily via a scheduled task (e.g., using Windows Task Scheduler).
+
+## Tech Stack
+
+* **Python 3.x**
+* **Spotipy:** Python library to interact with the Spotify Web API.
+* **SoundStat API:** Third-party API to get music recommendations based on reference tracks.
+* **Requests:** Python library to make HTTP calls to the SoundStat API.
+* **Schedule:** (Initially used for internal scheduling, but final automation is recommended via a system scheduler).
+
+## Getting Started: Installation and Configuration
+
+Follow these steps to set up and run the script on your Windows machine.
+
+### 1. Prerequisites
+
+* **Python 3.x:** Ensure Python is installed on your system. You can download it from [python.org](https://www.python.org/). During installation, check "Add Python to PATH."
+* **pip:** The Python package manager (usually included with Python).
+* **Spotify Account:** A Spotify account (free or Premium).
+* **Spotify Developer Account:** Required to create an application and obtain API credentials.
+* **SoundStat API Key:** Required to get new music recommendations.
+
+### 2. Installation
+
+1.  **Clone the repository (if you have it on GitHub) or download the files:**
+    If you have published the project on GitHub, clone it:
+    ```bash
+    git clone [https://github.com/okulvitra/SpotifyTrueDaily.git](https://github.com/okulvitra/SpotifyTrueDaily.git)
+    cd SpotifyTrueDaily
+    ```
+    Otherwise, ensure all project files (`playlist_manager.py`, `config_template.py`, etc.) are in the same folder.
+
+2.  **Create a virtual environment (recommended):**
+    Open a terminal (PowerShell or CMD) in the project folder and run:
+    ```bash
+    python -m venv .venv
+    ```
+
+3.  **Activate the virtual environment:**
+    ```bash
+    # On Windows (PowerShell)
+    .\.venv\Scripts\Activate.ps1
+    # On Windows (CMD)
+    # .\.venv\Scripts\activate.bat
+    ```
+    You should see `(.venv)` at the beginning of your command prompt.
+
+4.  **Install dependencies:**
+    Create a `requirements.txt` file in the root of your project with the following content:
+    ```txt
+    spotipy
+    schedule
+    requests
+    ```
+    Then, install these dependencies:
+    ```bash
+    pip install -r requirements.txt
+    ```
+
+### 3. API Key Configuration
+
+The script needs credentials to access the Spotify and SoundStat APIs. This information is confidential and should be stored locally in a `config.py` file.
+
+1.  **Spotify Application:**
+    * Go to the [Spotify Developer Dashboard](community.spotify.com).
+    * Create a new application.
+    * Note your `Client ID` and `Client Secret`.
+    * In your Spotify application settings, add a "Redirect URI." For local use, `http://127.0.0.1:8888/callback` or `http://localhost:8888/callback` are common choices. **Ensure this URI exactly matches the one you will put in your configuration file.**
+
+2.  **SoundStat API Key:**
+    * Go to [SoundStat.info](https://soundstat.info/) and follow their instructions to obtain an API key.
+
+3.  **Create the `config.py` file:**
+    * In the root of your project, you should find a file named `config_template.py`.
+    * **Copy** this file and **rename the copy** to `config.py`.
+    * Open `config.py` with a text editor and **fill in your own credentials** in place of the placeholders:
+
+        ```python
+        # config.py - FILL IN WITH YOUR INFORMATION
+        
+        # Spotify Configuration
+        SPOTIPY_CLIENT_ID = 'YOUR_SPOTIFY_CLIENT_ID_HERE'
+        SPOTIPY_CLIENT_SECRET = 'YOUR_SPOTIFY_CLIENT_SECRET_HERE'
+        SPOTIPY_REDIRECT_URI = '[http://127.0.0.1:8888/callback](http://127.0.0.1:8888/callback)' # Or your configured URI
+
+        # SoundStat Configuration
+        SOUNDSTAT_API_KEY = 'YOUR_SOUNDSTAT_API_KEY_HERE'
+        ```
+    * **Important:** The `config.py` file is ignored by Git (via the `.gitignore` file) to avoid exposing your keys if you share the project. Do not remove `config.py` from your `.gitignore` if you are using Git.
+
+### 4. First Run and Spotify Authentication
+
+Before you can automate the script, you must run it manually at least once to authorize access to your Spotify account:
+
+1.  Ensure your virtual environment is activated.
+2.  Run the script:
+    ```bash
+    python playlist_manager.py
+    ```
+3.  On the first run, a page in your browser will open asking you to authorize the Spotify application you created. Accept.
+4.  After authorization, you will be redirected to your `SPOTIPY_REDIRECT_URI` (e.g., `http://127.0.0.1:8888/callback?code=...`). **Copy the full URL** of this redirect page from your browser's address bar.
+5.  **Paste this full URL into the terminal** where the Python script prompts you, then press Enter.
+
+Once this step is completed, the script will create a `.cache` file (or similar) in your project folder. This file stores your Spotify access token, allowing the script to re-authenticate automatically on subsequent runs without requiring this manual step. **Remember that this `.cache` file is also listed in `.gitignore` to prevent it from being shared.**
+
+## Manual Usage
+
+After setup and the first authentication, you can run the script manually at any time (with the virtual environment activated):
+
+```bash
+python playlist_manager.py
+```
+
+Optional: Automation with Windows Task Scheduler
+To have the script update your playlist automatically every day without manual intervention, you can use Windows Task Scheduler.
+
+Create a batch file (run_playlist_updater.bat):
+    In the root of your project, create a file named run_playlist_updater.bat with the following content (adjust paths if your project is not at C:\Users\YourUser\Desktop\spotiapp):
+```bash
+@echo off
+REM Change directory to the script's location
+cd /D "C:\Path\To\Your\Project\spotiapp"
+
+REM Activate virtual environment
+echo Activating virtual environment...
+call ".venv\Scripts\activate.bat"
+
+REM Run the Python script
+echo Running Python script...
+python "playlist_manager.py"
+
+echo Script finished.
+```
+2.  Configure the Scheduled Task:
+*Open Task Scheduler on Windows.
+    *Click "Create Basic Task...".
+    *Name: Update Spotify Daily Playlist (or similar).
+    *Trigger: Choose "Daily" and set the desired start time (e.g., 06:00:00 or 22:00:00). You can add more triggers later if needed.
+    *Action: Choose "Start a program".
+    *Program/script: Enter the full path to your run_playlist_updater.bat file.
+    *Start in (optional): Enter the path to your project folder (e.g., C:\Path\To\Your\Project\spotiapp\).
+    *Follow the prompts to finalize creation.
+    *In the advanced properties of the task (check the "Open the Properties dialog..." box at the end of the wizard), you can configure options like "Run whether user is logged on or not" (will require your Windows password) and "Run with highest privileges."
+
+## Disclaimer
+
+This script was developed with the assistance of Google Gemini 2.5 Pro in a spirit of "vibe coding" and collaborative exploration. The AI assisted with code structuring, debugging, explaining concepts, and drafting documentation.
