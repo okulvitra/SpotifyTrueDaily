@@ -10,7 +10,15 @@ SPOTIPY_REDIRECT_URI = 'http://127.0.0.1:8888/callback' # Ou votre URI de redire
 # Configuration SoundStat
 SOUNDSTAT_API_KEY = 'VOTRE_CLE_API_SOUNDSTAT_ICI'
 
-# Options de la Playlist (vous pouvez aussi les laisser dans le script principal si elles ne sont pas secrètes)
-# PLAYLIST_NAME = "Journalière"
-# MAX_RECENT_TRACKS = 5
-# etc.
+# \--- Paramètres de contenu de la Playlist Journalière ---
+
+# Valeurs par défaut suggérées, ajustez selon vos préférences.
+
+# Un avertissement s'affichera dans l'application si les totaux sont élevés.
+
+MAX_RECENT_TRACKS = 5
+MAX_TOP_TRACKS = 5
+MAX_PODCAST_EPISODES = 3
+MAX_RANDOM_RECOMMENDATIONS_FROM_LIBRARY = 2
+MAX_SOUNDSTAT_RECOMMENDATIONS = 3
+SOUNDSTAT_SEED_TRACK_COUNT = 2

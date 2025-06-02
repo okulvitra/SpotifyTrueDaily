@@ -5,7 +5,8 @@ import schedule
 import time
 import random
 import requests
-# import os
+import os
+import sys
 # import logging
 
 # logging.basicConfig() # Nécessaire si pas déjà configuré ailleurs
@@ -53,34 +54,70 @@ SCOPES = [
     "playlist-modify-private",      # Pour créer/modifier des playlists privées (choisis l'un ou l'autre ou les deux)
     "user-library-read",            # Pour lire la bibliothèque de l'utilisateur
     "user-follow-read",             # Pour les podcasts suivis (si besoin)
-    "user-read-private" #pour accéder aux données comme la localisation
-    # "streaming" # Si tu voulais contrôler la lecture, non nécessaire ici
+    "user-read-private", #pour accéder aux données comme la localisation
+    "user-read-playback-position"
+    
 ]
 
 # Heures de mise à jour (format 24h)
 UPDATE_TIMES = ["06:00", "22:00"]
 
-# Nombre maximum de chaque type de contenu
-MAX_RECENT_TRACKS = 4
-MAX_TOP_TRACKS = 4
-MAX_PODCAST_EPISODES = 6 # Derniers épisodes pour X podcasts
-MAX_RANDOM_RECOMMENDATIONS_FROM_LIBRARY = 3
-MAX_NEW_RECOMMENDATIONS = 0 # Nouveautés basées sur les goûts
+# --- CHARGEMENT DES PARAMÈTRES DE CONTENU DEPUIS CONFIG.PY ---
+# Fournir des valeurs par défaut robustes si config.py est manquant ou incomplet.
+DEFAULT_CONTENT_SETTINGS_PM = {
+    "MAX_RECENT_TRACKS": 1, # Valeurs minimales par défaut pour le fonctionnement
+    "MAX_TOP_TRACKS": 1,
+    "MAX_PODCAST_EPISODES": 1,
+    "MAX_RANDOM_RECOMMENDATIONS_FROM_LIBRARY": 1,
+    "MAX_SOUNDSTAT_RECOMMENDATIONS": 0, # Par défaut désactivé si non configuré
+    "SOUNDSTAT_SEED_TRACK_COUNT": 0
+}
+def get_config_value(config_module, key, default_value):
+    try:
+        return getattr(config_module, key)
+    except AttributeError:
+        print(f"Avertissement: '{key}' non trouvé dans config.py, utilisation de la valeur par défaut: {default_value}")
+        return default_value
 
-# --- CONFIGURATION SOUNDSTAT ---
-SOUNDSTAT_API_URL = 'https://soundstat.info/api/v1/recommendations/similar'
-MAX_SOUNDSTAT_RECOMMENDATIONS = 2 # Nombre de recommandations à demander à SoundStat
-SOUNDSTAT_SEED_TRACK_COUNT = 4    # Nombre de tes titres récents/top à utiliser comme seeds pour SoundStat
+# S'assurer que 'config' a bien été importé
+if 'config' in locals() or 'config' in globals():
+    MAX_RECENT_TRACKS = get_config_value(config, 'MAX_RECENT_TRACKS', DEFAULT_CONTENT_SETTINGS_PM['MAX_RECENT_TRACKS'])
+    MAX_TOP_TRACKS = get_config_value(config, 'MAX_TOP_TRACKS', DEFAULT_CONTENT_SETTINGS_PM['MAX_TOP_TRACKS'])
+    MAX_PODCAST_EPISODES = get_config_value(config, 'MAX_PODCAST_EPISODES', DEFAULT_CONTENT_SETTINGS_PM['MAX_PODCAST_EPISODES'])
+    MAX_RANDOM_RECOMMENDATIONS_FROM_LIBRARY = get_config_value(config, 'MAX_RANDOM_RECOMMENDATIONS_FROM_LIBRARY', DEFAULT_CONTENT_SETTINGS_PM['MAX_RANDOM_RECOMMENDATIONS_FROM_LIBRARY'])
+    MAX_SOUNDSTAT_RECOMMENDATIONS = get_config_value(config, 'MAX_SOUNDSTAT_RECOMMENDATIONS', DEFAULT_CONTENT_SETTINGS_PM['MAX_SOUNDSTAT_RECOMMENDATIONS'])
+    SOUNDSTAT_SEED_TRACK_COUNT = get_config_value(config, 'SOUNDSTAT_SEED_TRACK_COUNT', DEFAULT_CONTENT_SETTINGS_PM['SOUNDSTAT_SEED_TRACK_COUNT'])
+else:
+    # Cas où l'import de config a échoué plus tôt (géré par ConfigError)
+    # On définit quand même les globales avec les valeurs par défaut pour que le module soit importable par la GUI
+    print("Avertissement (playlist_manager): Le module config n'a pas pu être chargé. Utilisation des valeurs par défaut internes pour le contenu.")
+    MAX_RECENT_TRACKS = DEFAULT_CONTENT_SETTINGS_PM['MAX_RECENT_TRACKS']
+    MAX_TOP_TRACKS = DEFAULT_CONTENT_SETTINGS_PM['MAX_TOP_TRACKS']
+    MAX_PODCAST_EPISODES = DEFAULT_CONTENT_SETTINGS_PM['MAX_PODCAST_EPISODES']
+    MAX_RANDOM_RECOMMENDATIONS_FROM_LIBRARY = DEFAULT_CONTENT_SETTINGS_PM['MAX_RANDOM_RECOMMENDATIONS_FROM_LIBRARY']
+    MAX_SOUNDSTAT_RECOMMENDATIONS = DEFAULT_CONTENT_SETTINGS_PM['MAX_SOUNDSTAT_RECOMMENDATIONS']
+    SOUNDSTAT_SEED_TRACK_COUNT = DEFAULT_CONTENT_SETTINGS_PM['SOUNDSTAT_SEED_TRACK_COUNT']
+
+# Supprimez ou commentez les anciennes définitions en dur de ces constantes
+# si elles étaient plus bas dans playlist_manager.py.
 
 # --- FONCTIONS SPOTIFY ---
 
 def authenticate_spotify():
     """Authentifie l'utilisateur et retourne un objet Spotify."""
+    if getattr(sys, 'frozen', False):
+        application_path_auth = os.path.dirname(sys.executable)
+    else:
+        application_path_auth = os.path.dirname(os.path.abspath(__file__))
+
+    cache_file_path = os.path.join(application_path_auth, ".spotipyoauthcache") # Nom de fichier cache explicite
+
     auth_manager = SpotifyOAuth(
         client_id=SPOTIPY_CLIENT_ID,
         client_secret=SPOTIPY_CLIENT_SECRET,
         redirect_uri=SPOTIPY_REDIRECT_URI,
-        scope=" ".join(SCOPES) # Les scopes doivent être une chaîne séparée par des espaces
+        scope=" ".join(SCOPES), # Les scopes doivent être une chaîne séparée par des espaces
+        cache_path=cache_file_path
     )
     sp = spotipy.Spotify(auth_manager=auth_manager, retries=0, requests_timeout=10,)
     print("Authentification réussie!")
@@ -520,7 +557,7 @@ def refresh_daily_playlist():
                     break 
         final_unique_uris = interlaced_uris
         
-        print(f"\nTotal d'éléments après entrelacement (1 Podcast / 3 Musiques): {len(final_unique_uris)}")
+        print(f"\nTotal d'éléments après entrelacement ({len(unique_podcast_uris)} Podcast(s) /  {len(unique_music_uris) }Musique(s)): {len(final_unique_uris)}")
         time.sleep(1)
         
         update_playlist_content(sp, playlist_id, final_unique_uris) # Mise à jour de la playlist
