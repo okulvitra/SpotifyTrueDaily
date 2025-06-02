@@ -5,9 +5,17 @@ import schedule
 import time
 import random
 import requests
-import os
+# import os
+# import logging
+
+# logging.basicConfig() # Nécessaire si pas déjà configuré ailleurs
+# logging.getLogger('spotipy').setLevel(logging.DEBUG)
+# logging.getLogger('requests.packages.urllib3').setLevel(logging.DEBUG) # Pour voir les logs de la bibliothèque HTTP sous-jacente
+# ou essayez logging.getLogger('urllib3').setLevel(logging.DEBUG) si le chemin ci-dessus ne fonctionne pas
 
 # --- CHARGEMENT DE LA CONFIGURATION ---
+class ConfigError(Exception): # Définir une exception personnalisée
+    pass
 try:
     import config # Essaie d'importer config.py
 
@@ -22,15 +30,15 @@ try:
        'VOTRE_' in SOUNDSTAT_API_KEY:
         print("ERREUR: Veuillez remplir vos clés API dans le fichier 'config.py'.")
         print("Ne pas utiliser les valeurs du template 'VOTRE_..._ICI'.")
-        exit()
+         # Lever une exception au lieu de print et exit
+        raise ConfigError("ERREUR: Veuillez remplir vos clés API dans le fichier 'config.py'.\n"
+                          "Ne pas utiliser les valeurs du template 'VOTRE_..._ICI'.")
 
 except ImportError:
-    print("ERREUR: Fichier de configuration 'config.py' introuvable.")
-    print("Veuillez copier 'config_template.py' en 'config.py' et y mettre vos clés API.")
-    exit()
+    raise ConfigError("ERREUR: Fichier de configuration 'config.py' introuvable.\n"
+                      "Veuillez copier 'config_template.py' en 'config.py' et y mettre vos clés API.")
 except AttributeError as e:
-    print(f"ERREUR: Une variable de configuration est manquante dans 'config.py': {e}")
-    exit()
+    raise ConfigError(f"ERREUR: Une variable de configuration est manquante dans 'config.py': {e}")
 
 # Nom de la playlist à gérer
 PLAYLIST_NAME = "Journalière"
@@ -53,15 +61,15 @@ SCOPES = [
 UPDATE_TIMES = ["06:00", "22:00"]
 
 # Nombre maximum de chaque type de contenu
-MAX_RECENT_TRACKS = 5
-MAX_TOP_TRACKS = 5
-MAX_PODCAST_EPISODES = 3 # Derniers épisodes pour X podcasts
+MAX_RECENT_TRACKS = 4
+MAX_TOP_TRACKS = 4
+MAX_PODCAST_EPISODES = 6 # Derniers épisodes pour X podcasts
 MAX_RANDOM_RECOMMENDATIONS_FROM_LIBRARY = 3
-MAX_NEW_RECOMMENDATIONS = 4 # Nouveautés basées sur les goûts
+MAX_NEW_RECOMMENDATIONS = 0 # Nouveautés basées sur les goûts
 
 # --- CONFIGURATION SOUNDSTAT ---
 SOUNDSTAT_API_URL = 'https://soundstat.info/api/v1/recommendations/similar'
-MAX_SOUNDSTAT_RECOMMENDATIONS = 4 # Nombre de recommandations à demander à SoundStat
+MAX_SOUNDSTAT_RECOMMENDATIONS = 2 # Nombre de recommandations à demander à SoundStat
 SOUNDSTAT_SEED_TRACK_COUNT = 4    # Nombre de tes titres récents/top à utiliser comme seeds pour SoundStat
 
 # --- FONCTIONS SPOTIFY ---
@@ -74,14 +82,13 @@ def authenticate_spotify():
         redirect_uri=SPOTIPY_REDIRECT_URI,
         scope=" ".join(SCOPES) # Les scopes doivent être une chaîne séparée par des espaces
     )
-    sp = spotipy.Spotify(auth_manager=auth_manager)
+    sp = spotipy.Spotify(auth_manager=auth_manager, retries=0, requests_timeout=10,)
     print("Authentification réussie!")
     return sp
 
-def get_or_create_playlist(sp, playlist_name):
+def get_or_create_playlist(sp, user_id, playlist_name):
     """Récupère l'ID d'une playlist existante ou la crée si elle n'existe pas."""
-    user_id = sp.current_user()['id']
-    playlists = sp.current_user_playlists(limit=50)
+    playlists = sp.current_user_playlists(limit=3)
     target_playlist_id = None
 
     for playlist in playlists['items']:
@@ -105,7 +112,6 @@ def get_recent_tracks_uris(sp, limit=5):
     for item in results['items']:
         track = item['track']
         if track and track['uri'] not in track_uris: # Éviter les doublons si écouté plusieurs fois de suite
-             print(f" - {track['name']} par {', '.join([artist['name'] for artist in track['artists']])}")
              track_uris.append(track['uri'])
     return track_uris
 
@@ -116,256 +122,97 @@ def get_top_tracks_uris(sp, limit=5, time_range='short_term'):
     print(f"\n--- Top Titres ({time_range}, max {limit}) ---")
     for track in results['items']:
         if track and track['uri'] not in track_uris:
-            print(f" - {track['name']} par {', '.join([artist['name'] for artist in track['artists']])}")
             track_uris.append(track['uri'])
     return track_uris
 
-def get_saved_shows_latest_episodes_uris(sp, limit_shows=3, market=None):
-    """
-    Récupère les derniers épisodes des podcasts (émissions) sauvegardés par l'utilisateur.
-    """
-    print(f"\n--- Derniers Épisodes des Podcasts Sauvegardés (max {limit_shows} émissions) ---")
-    user_country = market or sp.current_user()['country']
-    saved_shows_results = sp.current_user_saved_shows(limit=limit_shows) # Récupère les émissions les plus récemment sauvegardées/suivies
+def get_saved_shows_latest_episodes_uris(sp, limit_shows, market=None): # limit_shows sera MAX_PODCAST_EPISODES
+    print(f"\n--- Recherche des {limit_shows} derniers épisodes de podcast non lus (hors audiobooks) ---")
     
-    episode_uris = []
-    
-    if not saved_shows_results['items']:
-        print("Aucune émission de podcast sauvegardée/suivie trouvée.")
-        return episode_uris
+    episode_uris_to_add = []
+    if limit_shows == 0:
+        print("Récupération des podcasts désactivée (MAX_PODCAST_EPISODES est 0).")
+        return episode_uris_to_add
 
+    # On récupère un peu plus d'émissions pour avoir une chance de trouver des podcasts valides après filtrage
+    # Par exemple, si on veut 3 podcasts, on en regarde jusqu'à 3*2=6 ou 3+2=5.
+    # Soyons prudents, ne prenons pas trop pour éviter les appels inutiles si les premiers sont bons.
+    shows_to_fetch_initially = limit_shows + 2 # Un petit tampon
+
+    try:
+        print(f"Pause de 2s avant de récupérer jusqu'à {shows_to_fetch_initially} émissions sauvegardées...")
+        time.sleep(2)
+        saved_shows_results = sp.current_user_saved_shows(limit=shows_to_fetch_initially)
+    except spotipy.SpotifyException as e:
+        print(f"Erreur Spotipy lors de la récupération des émissions sauvegardées: {e}")
+        return []
+    except requests.exceptions.RequestException as e_req:
+        print(f"Erreur réseau lors de la récupération des émissions sauvegardées: {e_req}")
+        return []
+    except Exception as e_gen:
+        print(f"Erreur inattendue lors de la récupération des émissions sauvegardées: {e_gen}")
+        return []
+
+    if not saved_shows_results or not saved_shows_results['items']:
+        print("Aucune émission de podcast/show sauvegardée trouvée.")
+        return episode_uris_to_add
+
+    valid_episodes_found_count = 0
     for item in saved_shows_results['items']:
+        if valid_episodes_found_count >= limit_shows:
+            break # On a trouvé assez de vrais épisodes de podcast non lus
+
         show = item['show']
         show_id = show['id']
         show_name = show['name']
         
+        print(f"Traitement de l'émission : '{show_name}'. Pause de 2s...")
+        time.sleep(2)
+
         try:
-            # Récupérer le dernier épisode de cette émission
-            # Certains podcasts peuvent ne pas être disponibles dans tous les marchés, d'où l'importance du 'market'
-            show_episodes = sp.show_episodes(show_id, limit=1, market=user_country) 
-            if show_episodes['items']:
-                latest_episode = show_episodes['items'][0]
-                if latest_episode['uri'] not in episode_uris: # Éviter doublons si jamais
-                    print(f" - Émission: {show_name} - Dernier épisode: {latest_episode['name']}")
-                    episode_uris.append(latest_episode['uri'])
-            else:
-                print(f" - Aucun épisode trouvé pour l'émission sauvegardée: {show_name} (peut-être pas d'épisode récent ou problème de marché).")
-        except Exception as e:
-            print(f"Erreur en récupérant les épisodes de {show_name}: {e}")
-            # Si une émission spécifique pose problème, on continue avec les suivantes
+            show_episodes_data = sp.show_episodes(show_id, limit=1, market=market) # On prend le dernier item
             
-    if not episode_uris:
-        print("Aucun dernier épisode récupérable pour les émissions sauvegardées.")
-        
-    return episode_uris
+            if show_episodes_data and show_episodes_data['items']:
+                latest_item = show_episodes_data['items'][0]
+                item_name = latest_item['name']
+                item_uri = latest_item['uri']
+                item_type = latest_item.get('type', 'unknown')
 
+                # --- FILTRAGE IMPORTANT ---
+                if item_type == 'chapter':
+                    print(f"  -> L'élément '{item_name}' de '{show_name}' est un chapitre d'audiobook (type: {item_type}). Ignoré.")
+                    continue # On passe à l'émission suivante dans la boucle saved_shows_results
 
-# def get_recommendations_uris(sp, seed_tracks, seed_artists, limit_library=3, limit_new=3, market=None):
-
-    """
-    Récupère des recommandations :
-    - Un mix de titres aléatoires de la bibliothèque de l'utilisateur.
-    - Des propositions basées sur les goûts (artistes/titres récents/tops ou genres).
-    """
-    recommendation_uris = []
-    user_country = market or sp.current_user()['country']
-
-    # 1. Titres aléatoires de la bibliothèque
-    print(f"\n--- Recommandations Aléatoires de la Bibliothèque (max {limit_library}) ---")
-    saved_tracks_results = sp.current_user_saved_tracks(limit=50)
-    
-    # Récupérer les URIs des titres sauvegardés pour les exclure des "nouvelles" recommandations plus tard
-    # Et pour pouvoir sélectionner aléatoirement dedans.
-    user_library_track_uris = []
-    if saved_tracks_results and saved_tracks_results['items']:
-        user_library_track_uris = [item['track']['uri'] for item in saved_tracks_results['items'] if item['track']]
-
-    if user_library_track_uris:
-        eligible_library_tracks = [uri for uri in user_library_track_uris if uri not in seed_tracks] # Évite de recommander ce qui est déjà dans récents/tops
-        
-        if len(eligible_library_tracks) > limit_library:
-            selected_library_tracks = random.sample(eligible_library_tracks, limit_library)
-        else:
-            selected_library_tracks = eligible_library_tracks
-        
-        for uri in selected_library_tracks:
-            try: # Ajout d'un try-except pour l'affichage
-                track_info = sp.track(uri)
-                print(f" - (Biblio) {track_info['name']} par {', '.join([artist['name'] for artist in track_info['artists']])}")
-            except Exception as e:
-                print(f" - (Biblio) Erreur d'affichage pour URI {uri}: {e}")
-        recommendation_uris.extend(selected_library_tracks)
-    else:
-        print("Aucun titre trouvé dans la bibliothèque pour des recommandations aléatoires.")
-
-    # 2. Nouvelles propositions basées sur les goûts
-    print(f"\n--- Nouvelles Recommandations (max {limit_new}) ---")
-    
-      # --- DÉBUT DU BLOC DE DIAGNOSTIC DÉTAILLÉ ---
-    print("\n--- DIAGNOSTIC DÉTAILLÉ RECOMMANDATIONS ---")
-    # Assure-toi que user_country est défini (il l'est normalement au début de get_recommendations_uris)
-    # user_country = market or sp.current_user()['country'] # Déjà fait plus haut dans la fonction
-
-    # Test 1: Seed avec un genre commun
-    print("\nDIAGNOSTIC TEST 1: Seed avec genre 'pop'")
-    try:
-        # Tentative SANS le paramètre market d'abord
-        print("  Test genre 'pop' SANS marché explicite...")
-        diag_recs_genre_no_market = sp.recommendations(seed_genres=['pop'], limit=1)
-        if diag_recs_genre_no_market and diag_recs_genre_no_market['tracks']:
-            print(f"    RÉUSSI (sans marché): Piste (pop): {diag_recs_genre_no_market['tracks'][0]['name']}")
-        elif diag_recs_genre_no_market:
-            print("    RÉUSSI (appel OK, sans marché) mais aucune piste retournée pour 'pop'.")
-        else:
-            print("    ÉCHEC (sans marché): Aucune donnée retournée pour seed_genres=['pop'].")
-    except spotipy.SpotifyException as e:
-        print(f"    ÉCHEC (SpotifyException, sans marché): {e.msg}")
-    except Exception as e:
-        print(f"    ÉCHEC (Exception générale, sans marché): {e}")
-
-    print(f"\n  Test genre 'pop' AVEC marché '{user_country}'...")
-    try:
-        diag_recs_genre_with_market = sp.recommendations(seed_genres=['pop'], limit=1, market=user_country)
-        if diag_recs_genre_with_market and diag_recs_genre_with_market['tracks']:
-            print(f"    RÉUSSI (avec marché): Piste (pop): {diag_recs_genre_with_market['tracks'][0]['name']}")
-        elif diag_recs_genre_with_market:
-            print("    RÉUSSI (appel OK, avec marché) mais aucune piste retournée pour 'pop'.")
-        else:
-            print("    ÉCHEC (avec marché): Aucune donnée retournée pour seed_genres=['pop'].")
-    except spotipy.SpotifyException as e:
-        print(f"    ÉCHEC (SpotifyException, avec marché): {e.msg}")
-    except Exception as e:
-        print(f"    ÉCHEC (Exception générale, avec marché): {e}")
-
-
-    # Test 2: Seed avec un titre (utilise le premier URI de seed_tracks si disponible)
-    print("\nDIAGNOSTIC TEST 2: Seed avec un titre")
-    if seed_tracks: # seed_tracks est un paramètre de get_recommendations_uris
-        test_track_seed_uri = seed_tracks[0]
-        print(f"  Utilisation du seed titre: {test_track_seed_uri} avec marché '{user_country}'")
-        try:
-            diag_recs_track = sp.recommendations(seed_tracks=[test_track_seed_uri], limit=1, market=user_country)
-            if diag_recs_track and diag_recs_track['tracks']:
-                print(f"    RÉUSSI: Piste (seed titre): {diag_recs_track['tracks'][0]['name']}")
-            elif diag_recs_track:
-                print("    RÉUSSI (appel OK) mais aucune piste retournée pour ce seed titre.")
-            else:
-                print(f"    ÉCHEC: Aucune donnée retournée pour seed_tracks=['{test_track_seed_uri}'].")
-        except spotipy.SpotifyException as e:
-            print(f"    ÉCHEC (SpotifyException): {e.msg}")
-        except Exception as e:
-            print(f"    ÉCHEC (Exception générale): {e}")
-    else:
-        print("  PAS DE SEED TITRE (seed_tracks) disponible pour ce test.")
-
-    # Test 3: Seed avec un artiste (utilise le premier URI de seed_artists si disponible)
-    print("\nDIAGNOSTIC TEST 3: Seed avec un artiste")
-    if seed_artists: # seed_artists est un paramètre de get_recommendations_uris
-        test_artist_seed_uri = seed_artists[0]
-        print(f"  Utilisation du seed artiste: {test_artist_seed_uri} avec marché '{user_country}'")
-        try:
-            diag_recs_artist = sp.recommendations(seed_artists=[test_artist_seed_uri], limit=1, market=user_country)
-            if diag_recs_artist and diag_recs_artist['tracks']:
-                print(f"    RÉUSSI: Piste (seed artiste): {diag_recs_artist['tracks'][0]['name']}")
-            elif diag_recs_artist:
-                print("    RÉUSSI (appel OK) mais aucune piste retournée pour ce seed artiste.")
-            else:
-                print(f"    ÉCHEC: Aucune donnée retournée pour seed_artists=['{test_artist_seed_uri}'].")
-        except spotipy.SpotifyException as e:
-            print(f"    ÉCHEC (SpotifyException): {e.msg}")
-        except Exception as e:
-            print(f"    ÉCHEC (Exception générale): {e}")
-    else:
-        print("  PAS DE SEED ARTISTE (seed_artists) disponible pour ce test.")
-
-    print("--- FIN DU BLOC DE DIAGNOSTIC DÉTAILLÉ ---\n")
-    current_seed_tracks_for_api = list(set(seed_tracks))[:2] # URIs des titres
-    current_seed_artists_for_api = list(set(seed_artists))[:2] # URIs des artistes
-    
-    new_recommendations_added_count = 0
-    attempted_with_tracks_artists = False
-
-    # Tentative 1: Basée sur les titres et artistes récents/tops
-    if current_seed_tracks_for_api or current_seed_artists_for_api:
-        attempted_with_tracks_artists = True
-        print(f"Tentative de recommandations avec : Artistes = {current_seed_artists_for_api}, Titres = {current_seed_tracks_for_api}, Marché = {user_country}")
-        try:
-            recs = sp.recommendations(
-                seed_tracks=current_seed_tracks_for_api if current_seed_tracks_for_api else None,
-                seed_artists=current_seed_artists_for_api if current_seed_artists_for_api else None,
-                limit=limit_new + 5, 
-                market=user_country
-            )
-            if recs and recs['tracks']:
-                for track in recs['tracks']:
-                    if track and track['uri'] not in recommendation_uris and track['uri'] not in seed_tracks and track['uri'] not in user_library_track_uris: # Évite doublons avec biblio, seeds initiaux
-                        print(f" - (Nouveau S/A) {track['name']} par {', '.join([artist['name'] for artist in track['artists']])}")
-                        recommendation_uris.append(track['uri'])
-                        new_recommendations_added_count += 1
-                        if new_recommendations_added_count >= limit_new:
-                            break
-                if new_recommendations_added_count == 0:
-                    print("Aucune nouvelle recommandation unique (non-biblio, non-seed) trouvée avec les seeds Artistes/Titres.")
-            else:
-                print("Aucune piste retournée par l'API de recommandations avec les seeds Artistes/Titres.")
-        except spotipy.SpotifyException as e:
-            print(f"Erreur Spotipy lors de la récupération des nouvelles recommandations (Artistes/Titres): {e.msg}") # Utiliser e.msg pour un message plus clair
-            if e.http_status == 400:
-                 print("   Cela peut être dû à des seeds Artistes/Titres invalides ou à une combinaison non supportée.")
-            elif e.http_status == 404: # Ne devrait pas arriver si l'endpoint est bon, mais au cas où
-                 print("   L'endpoint de recommandation (Artistes/Titres) n'a pas été trouvé.")
-            # Pas d'autres messages spécifiques ici, l'erreur principale est déjà affichée.
-        except Exception as e:
-             print(f"Erreur générale non-Spotipy lors de la récupération des nouvelles recommandations (Artistes/Titres): {e}")
-
-    # Tentative 2 (Fallback): Basée sur les genres, si la première tentative n'a pas fourni assez de recommandations
-    if new_recommendations_added_count < limit_new:
-        if attempted_with_tracks_artists: # Si on a déjà tenté avec tracks/artists
-            print("\nFallback aux genres car la méthode Artistes/Titres n'a pas fourni assez de recommandations.")
-        else: # Si on n'avait aucun seed track/artist au départ
-            print("\nAucun seed Artiste/Titre disponible, tentative de recommandations basée sur les genres.")
-        try:
-            top_artists_genres = []
-            top_artists_full = sp.current_user_top_artists(limit=5, time_range='medium_term') # Genres des artistes favoris
-            if top_artists_full and top_artists_full['items']:
-                for artist in top_artists_full['items']:
-                    top_artists_genres.extend(artist['genres'])
+                # Si ce n'est pas un chapitre, on assume que c'est un épisode de podcast et on vérifie s'il est lu
+                is_fully_played = False
+                resume_point = latest_item.get('resume_point')
+                if isinstance(resume_point, dict) and resume_point.get('fully_played') is True:
+                    is_fully_played = True
                 
-                seed_genres_for_api = list(set(top_artists_genres))[:3] # Max 3 genres pour laisser de la place à d'autres types de seeds si besoin un jour
-
-                if seed_genres_for_api:
-                    print(f"Utilisation des genres seeds: {seed_genres_for_api}, Marché = {user_country}")
-                    # On veut compléter jusqu'à `limit_new` recommandations
-                    needed_recs_from_genres = limit_new - new_recommendations_added_count
-                    if needed_recs_from_genres > 0:
-                        recs_genre = sp.recommendations(seed_genres=seed_genres_for_api, limit=needed_recs_from_genres + 5, market=user_country)
-                        if recs_genre and recs_genre['tracks']:
-                            for track in recs_genre['tracks']:
-                                if track and track['uri'] not in recommendation_uris and track['uri'] not in seed_tracks and track['uri'] not in user_library_track_uris:
-                                    print(f" - (Nouveau/Genre) {track['name']} par {', '.join([artist['name'] for artist in track['artists']])}")
-                                    recommendation_uris.append(track['uri'])
-                                    new_recommendations_added_count += 1 # Compteur global de nouvelles recommandations
-                                    if new_recommendations_added_count >= limit_new:
-                                        break
-                            if new_recommendations_added_count < limit_new and (needed_recs_from_genres > 0 and not any(t for t in recs_genre['tracks'] if t and t['uri'] not in recommendation_uris and t['uri'] not in seed_tracks and t['uri'] not in user_library_track_uris)): # Si on voulait des recos par genre mais on n'en a pas eu de nouvelles
-                                print("Aucune nouvelle recommandation unique (non-biblio, non-seed) trouvée avec les genres.")
-                        else:
-                            print("Aucune piste retournée par l'API de recommandations avec les genres.")
-                    else:
-                        print("Nombre de nouvelles recommandations souhaitées déjà atteint avant le fallback par genres.")
+                if not is_fully_played:
+                    if item_uri not in episode_uris_to_add: # Devrait toujours être vrai ici
+                        print(f"  -> Ajout : '{item_name}' (non lu) de l'émission '{show_name}'.")
+                        episode_uris_to_add.append(item_uri)
+                        valid_episodes_found_count += 1
+                    # else: # Ce cas est peu probable si on ne traite qu'un épisode par show
+                        # print(f"  -> L'épisode non lu '{item_name}' de '{show_name}' est déjà dans la liste d'ajout.")
                 else:
-                    print("Aucun genre trouvé à partir des artistes favoris pour les recommandations par genre.")
+                    print(f"  -> L'épisode '{item_name}' de '{show_name}' a déjà été écouté en entier.")
             else:
-                print("Impossible de récupérer les top artistes pour obtenir des genres seeds.")
-        except spotipy.SpotifyException as fallback_e:
-            print(f"Erreur Spotipy lors de la tentative de recommandations par genre: {fallback_e.msg}")
-        except Exception as fallback_e:
-            print(f"Erreur générale lors de la tentative de recommandations par genre: {fallback_e}")
+                print(f"  -> Aucun épisode trouvé pour l'émission '{show_name}'.")
+        except spotipy.SpotifyException as e_spot:
+            print(f"Erreur Spotipy en récupérant les épisodes de '{show_name}': {e_spot}")
+        except requests.exceptions.RequestException as e_req:
+            print(f"Erreur réseau en récupérant les épisodes de '{show_name}': {e_req}")
+        except Exception as e:
+            print(f"Erreur inattendue en récupérant/traitant les épisodes de '{show_name}': {e}")
             
-    if new_recommendations_added_count == 0 and not any(uri in user_library_track_uris for uri in recommendation_uris): # Si vraiment rien de neuf et rien de la biblio
-        print("Aucune nouvelle recommandation n'a pu être ajoutée (ni par seeds Artistes/Titres, ni par Genres).")
+    if not episode_uris_to_add:
+        print("Aucun nouvel épisode de podcast (non-audiobook, non lu) n'a pu être récupéré.")
+    else:
+        print(f"{len(episode_uris_to_add)} épisode(s) de podcast valide(s) et non lu(s) sélectionné(s).")
+        
+    return episode_uris_to_add # La liste est implicitement limitée par valid_episodes_found_count et limit_shows
 
-    return recommendation_uris
 
 def get_soundstat_similar_tracks(api_key, seed_spotify_track_id, limit=5, min_popularity=None, genre_match=False):
     """
@@ -457,8 +304,8 @@ def update_playlist_content(sp, playlist_id, track_uris):
         print(f"Playlist '{PLAYLIST_NAME}' vidée.")
         
         # Ensuite, ajouter les nouveaux items par lots de 100 maximum
-        for i in range(0, len(track_uris), 100):
-            batch = track_uris[i:i + 100]
+        for i in range(0, len(track_uris), 50):
+            batch = track_uris[i:i + 50]
             sp.playlist_add_items(playlist_id, batch)
         print(f"{len(track_uris)} éléments ajoutés à la playlist '{PLAYLIST_NAME}'.")
     except Exception as e:
@@ -477,22 +324,36 @@ def refresh_daily_playlist():
 
     try:
         sp = authenticate_spotify()
-        playlist_id = get_or_create_playlist(sp, PLAYLIST_NAME)
+
+        current_user_data = sp.current_user()
+        user_id = current_user_data['id']
+        user_market = current_user_data['country']
+
+        playlist_id = get_or_create_playlist(sp, user_id, PLAYLIST_NAME)
+        
 
         # Collecte des contenus
         all_uris_to_add = []
 
         # 1. Podcasts (derniers épisodes)
         # Note: l'ordre d'ajout est important si tu veux les podcasts en premier
-        podcast_episode_uris = get_saved_shows_latest_episodes_uris(sp, limit_shows=MAX_PODCAST_EPISODES, market=sp.current_user()['country'])
+        # podcast_episode_uris = []
+        podcast_episode_uris = get_saved_shows_latest_episodes_uris(sp, limit_shows=MAX_PODCAST_EPISODES, market=user_market)
+        print(f"DEBUG: {len(podcast_episode_uris)} épisodes de podcast récupérés.") # Log de débogage
+        time.sleep(1)
         all_uris_to_add.extend(podcast_episode_uris)
+        # time.sleep(1)
 
         # 2. Musiques basées sur les écoutes
         recent_tracks_uris = get_recent_tracks_uris(sp, limit=MAX_RECENT_TRACKS)
+        print(f"DEBUG: {len(recent_tracks_uris)} titres récents récupérés.") # Log de débogage
         all_uris_to_add.extend(recent_tracks_uris)
+        time.sleep(1)
 
         top_tracks_uris = get_top_tracks_uris(sp, limit=MAX_TOP_TRACKS, time_range='short_term') # 'short_term', 'medium_term', 'long_term'
+        print(f"DEBUG: {len(top_tracks_uris)} top titres récupérés.") # Log de débogage
         all_uris_to_add.extend(top_tracks_uris)
+        time.sleep(1)
         
         print(f"\n--- Titres Aléatoires de la Bibliothèque (max {MAX_RANDOM_RECOMMENDATIONS_FROM_LIBRARY}) ---")
         library_recommendation_uris = []
@@ -503,17 +364,22 @@ def refresh_daily_playlist():
             eligible_library_tracks = [uri for uri in user_library_track_uris if uri not in recent_tracks_uris and uri not in top_tracks_uris]
             
             selected_count = min(MAX_RANDOM_RECOMMENDATIONS_FROM_LIBRARY, len(eligible_library_tracks))
+            
+            
             if selected_count > 0:
                 selected_library_tracks = random.sample(eligible_library_tracks, selected_count)
-                for uri in selected_library_tracks:
-                    try:
-                        track_info = sp.track(uri) # `sp.track` pour obtenir les infos
-                        print(f" - (Biblio) {track_info['name']} par {', '.join([art['name'] for art in track_info['artists']])}")
-                    except Exception as e_log_biblio:
-                        print(f" - (Biblio) Erreur affichage URI {uri}: {e_log_biblio}")
+                print(f" - (Biblio) Ajout de {len(selected_library_tracks)} titre(s) aléatoire(s) de la bibliothèque.") # Log simplifié
+                # for uri in selected_library_tracks:
+                #     try:
+                #         track_info = sp.track(uri) # `sp.track` pour obtenir les infos
+                #         print(f" - (Biblio) {track_info['name']} par {', '.join([art['name'] for art in track_info['artists']])}")
+                #     except Exception as e_log_biblio:
+                #         print(f" - (Biblio) Erreur affichage URI {uri}: {e_log_biblio}")
                 library_recommendation_uris.extend(selected_library_tracks)
         if not library_recommendation_uris: # Message si la liste est vide
              print("Aucun titre de la bibliothèque ajouté comme recommandation aléatoire.")
+             all_uris_to_add.extend(library_recommendation_uris)
+             time.sleep(1)
 
         # --- NOUVELLES RECOMMANDATIONS VIA SOUNDSTAT ---
         soundstat_reco_uris = [] # Liste finale des URIs SoundStat à ajouter à la playlist
@@ -603,13 +469,16 @@ def refresh_daily_playlist():
                 if len(soundstat_reco_uris) < MAX_SOUNDSTAT_RECOMMENDATIONS: # Si on n'a pas encore atteint le max de recos à ajouter
                     if uri not in existing_uris_to_avoid and uri not in soundstat_reco_uris: # Si c'est nouveau et pas déjà ajouté
                         soundstat_reco_uris.append(uri)
-                        try: 
-                            track_info = sp.track(uri)
-                            print(f"  + (SoundStat Reco retenue) {track_info['name']} par {', '.join([art['name'] for art in track_info['artists']])}")
-                        except:
-                            print(f"  + (SoundStat Reco retenue) URI: {uri} (infos non récupérables sur Spotify)")
+                        # try: 
+                        #     track_info = sp.track(uri)
+                        #     print(f"  + (SoundStat Reco retenue) {track_info['name']} par {', '.join([art['name'] for art in track_info['artists']])}")
+                        # except:
+                        #     print(f"  + (SoundStat Reco retenue) URI: {uri} (infos non récupérables sur Spotify)")
                 else:
                     break # On a atteint le nombre max de recommandations SoundStat à ajouter
+                if soundstat_reco_uris:
+                 print(f"  + {len(soundstat_reco_uris)} recommandation(s) SoundStat retenue(s) pour ajout.")
+                 
                 if len(soundstat_reco_uris) > MAX_SOUNDSTAT_RECOMMENDATIONS:
                     print(f"Plus de {MAX_SOUNDSTAT_RECOMMENDATIONS} recommandations SoundStat uniques trouvées ({len(soundstat_reco_uris)}), sélection aléatoire...")
                     soundstat_reco_uris = random.sample(soundstat_reco_uris, MAX_SOUNDSTAT_RECOMMENDATIONS)
@@ -652,24 +521,7 @@ def refresh_daily_playlist():
         final_unique_uris = interlaced_uris
         
         print(f"\nTotal d'éléments après entrelacement (1 Podcast / 3 Musiques): {len(final_unique_uris)}")
-        if final_unique_uris:
-            print("Premiers éléments de la playlist entrelacée (vérification) :")
-            # ... (Ta boucle de log pour les 10 premiers éléments, qui était correcte, vient ici) ...
-            for i, uri in enumerate(final_unique_uris[:10]):
-                try:
-                    item_name = "Non trouvé"
-                    item_type = "Inconnu"
-                    if "spotify:episode:" in uri:
-                        item = sp.episode(uri) 
-                        item_type = "Épisode"
-                        if item: item_name = item['name']
-                    elif "spotify:track:" in uri:
-                        item = sp.track(uri)
-                        item_type = "Musique"
-                        if item: item_name = item['name']
-                    print(f"  {i+1}. ({item_type}) {item_name}")
-                except Exception as e_log:
-                    print(f"  {i+1}. URI: {uri} - Erreur récupération info pour log: {e_log}")
+        time.sleep(1)
         
         update_playlist_content(sp, playlist_id, final_unique_uris) # Mise à jour de la playlist
         print(f"--- Mise à jour terminée pour '{PLAYLIST_NAME}' ---")
