@@ -62,6 +62,9 @@ SCOPES = [
 # Heures de mise à jour (format 24h)
 UPDATE_TIMES = ["06:00", "22:00"]
 
+# URL de l'API SoundStat
+SOUNDSTAT_API_URL = 'https://soundstat.info/api/v1/recommendations/similar'
+
 # --- CHARGEMENT DES PARAMÈTRES DE CONTENU DEPUIS CONFIG.PY ---
 # Fournir des valeurs par défaut robustes si config.py est manquant ou incomplet.
 DEFAULT_CONTENT_SETTINGS_PM = {
@@ -125,10 +128,15 @@ def authenticate_spotify():
 
 def get_or_create_playlist(sp, user_id, playlist_name):
     """Récupère l'ID d'une playlist existante ou la crée si elle n'existe pas."""
-    playlists = sp.current_user_playlists(limit=3)
+    playlists = sp.current_user_playlists(limit=20) # Augmenter la limite pour être plus sûr
     target_playlist_id = None
-
+    # --- DEBUG START ---
+    print(f"DEBUG: Searching for playlist '{playlist_name}' among {len(playlists['items'])} playlists returned by API.")
+    # --- DEBUG END ---
     for playlist in playlists['items']:
+        # --- DEBUG START ---
+        print(f"DEBUG: Checking playlist: '{playlist['name']}' (ID: {playlist['id']})")
+        # --- DEBUG END ---
         if playlist['name'] == playlist_name:
             target_playlist_id = playlist['id']
             print(f"Playlist '{playlist_name}' trouvée avec l'ID: {target_playlist_id}")
@@ -162,93 +170,107 @@ def get_top_tracks_uris(sp, limit=5, time_range='short_term'):
             track_uris.append(track['uri'])
     return track_uris
 
-def get_saved_shows_latest_episodes_uris(sp, limit_shows, market=None): # limit_shows sera MAX_PODCAST_EPISODES
-    print(f"\n--- Recherche des {limit_shows} derniers épisodes de podcast non lus (hors audiobooks) ---")
-    
+def get_saved_shows_latest_episodes_uris(sp, limit_shows, market=None):
+    """
+    Récupère un nombre défini (`limit_shows`) de derniers épisodes de podcasts NON LUS.
+    Parcourt les émissions suivies par l'utilisateur par pagination jusqu'à ce que le nombre souhaité
+    d'épisodes valides (non-lus et non-audiobook) soit atteint, ou jusqu'à ce que toutes les émissions
+    aient été vérifiées.
+    """
+    print(f"\n--- Recherche de {limit_shows} épisode(s) de podcast non lu(s) (hors audiobooks) ---")
+
     episode_uris_to_add = []
+
     if limit_shows == 0:
         print("Récupération des podcasts désactivée (MAX_PODCAST_EPISODES est 0).")
         return episode_uris_to_add
 
-    # On récupère un peu plus d'émissions pour avoir une chance de trouver des podcasts valides après filtrage
-    # Par exemple, si on veut 3 podcasts, on en regarde jusqu'à 3*2=6 ou 3+2=5.
-    # Soyons prudents, ne prenons pas trop pour éviter les appels inutiles si les premiers sont bons.
-    shows_to_fetch_initially = limit_shows + 2 # Un petit tampon
+    offset = 0
+    shows_per_page = 20  # Nombre d'émissions à récupérer par appel API (max 50). Ajustable si besoin.
 
-    try:
-        print(f"Pause de 2s avant de récupérer jusqu'à {shows_to_fetch_initially} émissions sauvegardées...")
-        time.sleep(2)
-        saved_shows_results = sp.current_user_saved_shows(limit=shows_to_fetch_initially)
-    except spotipy.SpotifyException as e:
-        print(f"Erreur Spotipy lors de la récupération des émissions sauvegardées: {e}")
-        return []
-    except requests.exceptions.RequestException as e_req:
-        print(f"Erreur réseau lors de la récupération des émissions sauvegardées: {e_req}")
-        return []
-    except Exception as e_gen:
-        print(f"Erreur inattendue lors de la récupération des émissions sauvegardées: {e_gen}")
-        return []
-
-    if not saved_shows_results or not saved_shows_results['items']:
-        print("Aucune émission de podcast/show sauvegardée trouvée.")
-        return episode_uris_to_add
-
-    valid_episodes_found_count = 0
-    for item in saved_shows_results['items']:
-        if valid_episodes_found_count >= limit_shows:
-            break # On a trouvé assez de vrais épisodes de podcast non lus
-
-        show = item['show']
-        show_id = show['id']
-        show_name = show['name']
-        
-        print(f"Traitement de l'émission : '{show_name}'. Pause de 2s...")
-        time.sleep(2)
-
+    # Boucle de pagination pour parcourir les émissions sauvegardées
+    while len(episode_uris_to_add) < limit_shows:
         try:
-            show_episodes_data = sp.show_episodes(show_id, limit=1, market=market) # On prend le dernier item
-            
-            if show_episodes_data and show_episodes_data['items']:
-                latest_item = show_episodes_data['items'][0]
-                item_name = latest_item['name']
-                item_uri = latest_item['uri']
-                item_type = latest_item.get('type', 'unknown')
-
-                # --- FILTRAGE IMPORTANT ---
-                if item_type == 'chapter':
-                    print(f"  -> L'élément '{item_name}' de '{show_name}' est un chapitre d'audiobook (type: {item_type}). Ignoré.")
-                    continue # On passe à l'émission suivante dans la boucle saved_shows_results
-
-                # Si ce n'est pas un chapitre, on assume que c'est un épisode de podcast et on vérifie s'il est lu
-                is_fully_played = False
-                resume_point = latest_item.get('resume_point')
-                if isinstance(resume_point, dict) and resume_point.get('fully_played') is True:
-                    is_fully_played = True
-                
-                if not is_fully_played:
-                    if item_uri not in episode_uris_to_add: # Devrait toujours être vrai ici
-                        print(f"  -> Ajout : '{item_name}' (non lu) de l'émission '{show_name}'.")
-                        episode_uris_to_add.append(item_uri)
-                        valid_episodes_found_count += 1
-                    # else: # Ce cas est peu probable si on ne traite qu'un épisode par show
-                        # print(f"  -> L'épisode non lu '{item_name}' de '{show_name}' est déjà dans la liste d'ajout.")
-                else:
-                    print(f"  -> L'épisode '{item_name}' de '{show_name}' a déjà été écouté en entier.")
-            else:
-                print(f"  -> Aucun épisode trouvé pour l'émission '{show_name}'.")
-        except spotipy.SpotifyException as e_spot:
-            print(f"Erreur Spotipy en récupérant les épisodes de '{show_name}': {e_spot}")
-        except requests.exceptions.RequestException as e_req:
-            print(f"Erreur réseau en récupérant les épisodes de '{show_name}': {e_req}")
+            # Appel pour récupérer un lot d'émissions
+            saved_shows_results = sp.current_user_saved_shows(limit=shows_per_page, offset=offset)
+        except spotipy.SpotifyException as e:
+            print(f"Erreur Spotipy lors de la récupération des émissions sauvegardées à l'offset {offset}: {e}")
+            break  # Arrêter la recherche en cas d'erreur
         except Exception as e:
-            print(f"Erreur inattendue en récupérant/traitant les épisodes de '{show_name}': {e}")
-            
+            print(f"Erreur inattendue lors de la récupération des émissions sauvegardées: {e}")
+            break
+
+        # Si Spotify ne retourne plus d'émissions, on a parcouru toute la bibliothèque
+        if not saved_shows_results or not saved_shows_results['items']:
+            print("Toutes les émissions sauvegardées ont été vérifiées.")
+            break
+
+        # Itérer sur le lot d'émissions récupéré
+        for item in saved_shows_results['items']:
+            # Ancien 'break' ici a été supprimé pour une logique plus claire
+            # La condition de la boucle 'while' externe gère la limite.
+
+            show = item['show']
+            show_id = show['id']
+            show_name = show['name']
+
+            try:
+                # Appel API pour récupérer le dernier épisode de CETTE émission spécifique
+                show_episodes_data = sp.show_episodes(show_id, limit=1, market=market)
+                time.sleep(0.3)  # Petite pause après chaque appel `show_episodes` pour être prudent
+
+                if show_episodes_data and show_episodes_data['items']:
+                    latest_item = show_episodes_data['items'][0]
+                    item_type = latest_item.get('type', 'unknown')
+
+                    # 1. Filtrer les chapitres d'audiobooks
+                    if item_type == 'chapter':
+                        print(f"  -> Ignoré: '{latest_item['name']}' de '{show_name}' est un audiobook.")
+                        continue  # Passe à l'émission suivante de la boucle
+
+                    # 2. Vérifier si l'épisode a été lu
+                    is_fully_played = False
+                    resume_point = latest_item.get('resume_point')
+                    # --- DEBUG START ---
+                    print(f"DEBUG: Episode '{latest_item['name']}' (ID: {latest_item['id']})")
+                    print(f"DEBUG: resume_point data: {resume_point}")
+                    # --- DEBUG END ---
+                    if isinstance(resume_point, dict) and resume_point.get('fully_played') is True:
+                        is_fully_played = True
+
+                    if not is_fully_played:
+                        if latest_item['uri'] not in episode_uris_to_add:
+                            print(f"  -> Ajouté: '{latest_item['name']}' (non lu) de '{show_name}'.")
+                            episode_uris_to_add.append(latest_item['uri'])
+                            # Vérifier immédiatement si la limite est atteinte
+                            if len(episode_uris_to_add) >= limit_shows:
+                                break # Sortir de la boucle 'for' pour arrêter le traitement de cette page
+                    else:
+                        print(f"  -> Ignoré: '{latest_item['name']}' de '{show_name}' a déjà été écouté.")
+                else:
+                    print(f"  -> Aucun épisode trouvé pour l'émission '{show_name}'.")
+
+            except spotipy.SpotifyException as e_spot:
+                print(f"Erreur Spotipy en récupérant les épisodes de '{show_name}': {e_spot}")
+            except Exception as e:
+                print(f"Erreur inattendue pour l'émission '{show_name}': {e}")
+
+        # Si on a déjà assez d'épisodes, on sort de la boucle principale `while`
+        if len(episode_uris_to_add) >= limit_shows:
+            print(f"Limite de {limit_shows} épisodes atteinte.")
+            break
+
+        # Mettre à jour l'offset pour la prochaine page d'émissions
+        offset += shows_per_page
+
+    # Fin de la boucle while
+
     if not episode_uris_to_add:
-        print("Aucun nouvel épisode de podcast (non-audiobook, non lu) n'a pu être récupéré.")
+        print("Aucun nouvel épisode de podcast valide et non lu n'a été trouvé après vérification.")
     else:
-        print(f"{len(episode_uris_to_add)} épisode(s) de podcast valide(s) et non lu(s) sélectionné(s).")
-        
-    return episode_uris_to_add # La liste est implicitement limitée par valid_episodes_found_count et limit_shows
+        print(f"\n{len(episode_uris_to_add)} épisode(s) de podcast valide(s) sélectionné(s).")
+
+    return episode_uris_to_add
 
 
 def get_soundstat_similar_tracks(api_key, seed_spotify_track_id, limit=5, min_popularity=None, genre_match=False):
@@ -334,7 +356,7 @@ def update_playlist_content(sp, playlist_id, track_uris):
     # Et replace_items remplace tout en une fois (max 100 aussi implicitement si on passe les URIs)
     # Pour plus de 100 items, il faudrait appeler add_items en plusieurs fois après avoir vidé.
     # Ici on suppose qu'on aura moins de 100 items au total.
-    print(f"\n--- Mise à jour de la playlist '{PLAYLIST_NAME}' ---")
+    print(f"\n--- Mise à jour de la playlist '{PLAYLIST_NAME}' (ID: {playlist_id}) ---")
     try:
         # D'abord, vider la playlist
         sp.playlist_replace_items(playlist_id, []) # Envoie une liste vide pour tout supprimer
@@ -347,11 +369,13 @@ def update_playlist_content(sp, playlist_id, track_uris):
         print(f"{len(track_uris)} éléments ajoutés à la playlist '{PLAYLIST_NAME}'.")
     except Exception as e:
         print(f"Erreur lors de la mise à jour de la playlist '{PLAYLIST_NAME}': {e}")
+        # Affichage détaillé de l'erreur pour aider au débogage
+        import traceback
+        traceback.print_exc() 
         if "too short" in str(e).lower():
             print("Cela peut arriver si la liste des URIs est vide ou si un URI est malformé.")
         elif "premium only" in str(e).lower():
             print("Certaines actions API peuvent être limitées pour les comptes non-Premium.")
-
 
 # --- FONCTION PRINCIPALE DE MISE À JOUR ---
 
