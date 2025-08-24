@@ -108,6 +108,11 @@ else:
 
 def authenticate_spotify():
     """Authentifie l'utilisateur et retourne un objet Spotify."""
+    # Validate credentials before attempting auth
+    if 'VOTRE_' in SPOTIPY_CLIENT_ID or 'VOTRE_' in SPOTIPY_CLIENT_SECRET:
+        raise ConfigError("Invalid Spotify credentials detected - update config.py with your credentials from Spotify Developer Dashboard")
+    
+    print(f"Authentication attempt with Client ID: {SPOTIPY_CLIENT_ID[:3]}...{SPOTIPY_CLIENT_SECRET[-3:]}")
     if getattr(sys, 'frozen', False):
         application_path_auth = os.path.dirname(sys.executable)
     else:
@@ -148,6 +153,18 @@ def get_or_create_playlist(sp, user_id, playlist_name):
         print(f"Playlist '{playlist_name}' créée avec l'ID: {target_playlist_id}")
 
     return target_playlist_id
+
+def get_user_playlists(sp=None):
+    """Récupère toutes les playlists de l'utilisateur."""
+    if sp is None:
+        sp = authenticate_spotify()
+    
+    try:
+        playlists_data = sp.current_user_playlists(limit=50)
+        return playlists_data
+    except Exception as e:
+        print(f"Erreur lors de la récupération des playlists: {e}")
+        return {'items': []}
 
 def get_recent_tracks_uris(sp, limit=5):
     """Récupère les URIs des titres écoutés récemment."""
