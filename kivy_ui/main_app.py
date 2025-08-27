@@ -6,6 +6,14 @@ Following best practices for 2025
 import sys
 import os
 
+# Disable the mtdev input provider before importing Kivy
+# Set environment variables to configure Kivy
+os.environ["KCFG_INPUT_mtdev"] = ""  # Disable mtdev provider
+os.environ["KCFG_GRAPHICS_width"] = "1200"
+os.environ["KCFG_GRAPHICS_height"] = "800"
+os.environ["KCFG_GRAPHICS_minimum_width"] = "900"
+os.environ["KCFG_GRAPHICS_minimum_height"] = "600"
+
 # Add the project root to the path so we can import playlist_manager
 sys.path.append(os.path.dirname(os.path.abspath(__file__)) + "/..")
 
@@ -28,6 +36,7 @@ try:
     from kivy.properties import StringProperty, NumericProperty, BooleanProperty, ListProperty
     from kivy.metrics import dp
     from kivy.animation import Animation
+    
     KIVY_AVAILABLE = True
 except ImportError as e:
     print(f"Error importing Kivy: {e}")
@@ -154,11 +163,6 @@ if KIVY_AVAILABLE:
         def build(self):
             # Set app title
             self.title = "SpotifyTrueDaily - Kivy Version"
-            
-            # Set window size (optional, for desktop)
-            from kivy.core.window import Window
-            Window.size = (1200, 800)
-            Window.minimum_width, Window.minimum_height = 900, 600
             
             # Apply theme
             self.apply_theme()
