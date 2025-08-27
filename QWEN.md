@@ -104,3 +104,10 @@ The application is designed for daily use, either manually or automated via Wind
 
 ## Qwen Added Memories
 - Projet SpotifyTrueDaily: L'application a été déboguée et corrigée. Les erreurs d'interface graphique (tag_configure, TclError), le problème de respect des limites pour les podcasts, les erreurs de syntaxe et de variables non définies (SOUNDSTAT_API_URL) ont été résolues. L'application fonctionne désormais correctement, la mise à jour de la playlist sur Spotify a été rétablie en supprimant et en recréant la playlist.
+- Interface Kivy: Corrections apportées pour résoudre les problèmes d'affichage et de scrolling dans les écrans Kivy. Problèmes résolus :
+  1. Les icônes ne s'affichaient pas correctement (carré vide) - résolu en remplaçant les emojis par des caractères Unicode standards.
+  2. Les éléments n'étaient pas correctement en responsive dans l'onglet "Settings" - résolu en ajustant les layouts et en fixant les hauteurs des éléments.
+  3. L'utilisation d'un slider pour SoundStat Seeds était incohérente - résolu en remplaçant par un composant stepper avec boutons +/-.
+  4. Problème de scrolling automatique vers le bas - résolu en corrigeant la gestion de la hauteur des ConfigCard et en ajustant la structure des layouts.
+  5. Problème de positionnement du contenu par rapport au header - résolu en maintenant une structure cohérente avec le Dashboard.
+  6. Erreurs de composants (ModernButton, Stepper) - résolues en corrigeant les implémentations pour suivre les conventions Kivy.
