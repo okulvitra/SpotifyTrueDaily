@@ -165,10 +165,12 @@ class ConfigCard(ModernCard):
         super().__init__(**kwargs)
         self.title = title
         self.description = description
-        # Height will be set by the content
+        self.orientation = 'vertical'
+        # Initial height - will be updated when content is added
+        self.height = dp(60)  # Height of header only initially
         
         # Header
-        header = BoxLayout(orientation='vertical', size_hint_y=None, height=dp(60))
+        self.header = BoxLayout(orientation='vertical', size_hint_y=None, height=dp(60))
         
         title_label = Label(
             text=self.title,
@@ -177,7 +179,7 @@ class ConfigCard(ModernCard):
             halign='left'
         )
         title_label.bind(size=title_label.setter('text_size'))
-        header.add_widget(title_label)
+        self.header.add_widget(title_label)
         
         if self.description:
             desc_label = Label(
@@ -187,6 +189,25 @@ class ConfigCard(ModernCard):
                 halign='left'
             )
             desc_label.bind(size=desc_label.setter('text_size'))
-            header.add_widget(desc_label)
+            self.header.add_widget(desc_label)
+            
+        self.add_widget(self.header)
         
-        self.add_widget(header)
+        # Bind to update height when children are added
+        self.bind(children=self.update_height)
+        
+    def update_height(self, *args):
+        """Update the height of the card based on its content"""
+        # Start with header height
+        total_height = self.header.height + self.padding[1] * 2  # padding top and bottom
+        
+        # Add height of all content widgets (excluding header)
+        for child in self.children:
+            if child != self.header:
+                if hasattr(child, 'height') and hasattr(child, 'size_hint_y'):
+                    if child.size_hint_y is None:
+                        total_height += child.height + self.spacing
+                    elif hasattr(child, 'minimum_height'):
+                        total_height += child.minimum_height + self.spacing
+                        
+        self.height = total_height

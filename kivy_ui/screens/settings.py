@@ -44,7 +44,7 @@ class SettingsScreen(Screen):
         main_layout.add_widget(header)
         
         # Content area with scroll
-        scroll = ScrollView()
+        self.scroll = ScrollView()
         content = BoxLayout(orientation='vertical', spacing=dp(20), size_hint_y=None)
         content.bind(minimum_height=content.setter('height'))
         
@@ -52,7 +52,7 @@ class SettingsScreen(Screen):
         api_card = ConfigCard(title="API Configuration")
         
         # Spotify API Section
-        spotify_section = BoxLayout(orientation='vertical', spacing=dp(15))
+        spotify_section = BoxLayout(orientation='vertical', spacing=dp(15), size_hint_y=None, height=dp(200))
         
         spotify_title = Label(
             text="Spotify API Credentials",
@@ -66,17 +66,18 @@ class SettingsScreen(Screen):
         spotify_section.add_widget(spotify_title)
         
         # Client ID
-        client_id_layout = BoxLayout(orientation='horizontal', size_hint_y=None, height=dp(40))
+        client_id_layout = BoxLayout(orientation='horizontal', size_hint_y=None, height=dp(50))
         client_id_label = Label(
             text="Client ID:",
             font_size=FONTS['body'],
             color=COLORS['text_secondary'],
-            size_hint_x=0.3,
-            halign='left'
+            size_hint_x=None,
+            width=dp(150),
+            halign='left',
+            valign='middle'
         )
         client_id_label.bind(size=client_id_label.setter('text_size'))
         self.client_id_input = TextInput(
-            size_hint_x=0.7,
             multiline=False,
             password=False,
             background_color=COLORS['bg_tertiary'],
@@ -87,17 +88,18 @@ class SettingsScreen(Screen):
         spotify_section.add_widget(client_id_layout)
         
         # Client Secret
-        client_secret_layout = BoxLayout(orientation='horizontal', size_hint_y=None, height=dp(40))
+        client_secret_layout = BoxLayout(orientation='horizontal', size_hint_y=None, height=dp(50))
         client_secret_label = Label(
             text="Client Secret:",
             font_size=FONTS['body'],
             color=COLORS['text_secondary'],
-            size_hint_x=0.3,
-            halign='left'
+            size_hint_x=None,
+            width=dp(150),
+            halign='left',
+            valign='middle'
         )
         client_secret_label.bind(size=client_secret_label.setter('text_size'))
         self.client_secret_input = TextInput(
-            size_hint_x=0.7,
             multiline=False,
             password=True,
             background_color=COLORS['bg_tertiary'],
@@ -108,17 +110,18 @@ class SettingsScreen(Screen):
         spotify_section.add_widget(client_secret_layout)
         
         # Redirect URI
-        redirect_uri_layout = BoxLayout(orientation='horizontal', size_hint_y=None, height=dp(40))
+        redirect_uri_layout = BoxLayout(orientation='horizontal', size_hint_y=None, height=dp(50))
         redirect_uri_label = Label(
             text="Redirect URI:",
             font_size=FONTS['body'],
             color=COLORS['text_secondary'],
-            size_hint_x=0.3,
-            halign='left'
+            size_hint_x=None,
+            width=dp(150),
+            halign='left',
+            valign='middle'
         )
         redirect_uri_label.bind(size=redirect_uri_label.setter('text_size'))
         self.redirect_uri_input = TextInput(
-            size_hint_x=0.7,
             multiline=False,
             text="http://127.0.0.1:8888/callback",
             background_color=COLORS['bg_tertiary'],
@@ -131,7 +134,7 @@ class SettingsScreen(Screen):
         api_card.add_widget(spotify_section)
         
         # SoundStat API Section
-        soundstat_section = BoxLayout(orientation='vertical', spacing=dp(15))
+        soundstat_section = BoxLayout(orientation='vertical', spacing=dp(15), size_hint_y=None, height=dp(120))
         
         soundstat_title = Label(
             text="SoundStat API Key",
@@ -144,17 +147,18 @@ class SettingsScreen(Screen):
         soundstat_title.bind(size=soundstat_title.setter('text_size'))
         soundstat_section.add_widget(soundstat_title)
         
-        soundstat_layout = BoxLayout(orientation='horizontal', size_hint_y=None, height=dp(40))
+        soundstat_layout = BoxLayout(orientation='horizontal', size_hint_y=None, height=dp(50))
         soundstat_label = Label(
             text="API Key:",
             font_size=FONTS['body'],
             color=COLORS['text_secondary'],
-            size_hint_x=0.3,
-            halign='left'
+            size_hint_x=None,
+            width=dp(150),
+            halign='left',
+            valign='middle'
         )
         soundstat_label.bind(size=soundstat_label.setter('text_size'))
         self.soundstat_input = TextInput(
-            size_hint_x=0.7,
             multiline=False,
             password=True,
             background_color=COLORS['bg_tertiary'],
@@ -185,8 +189,20 @@ class SettingsScreen(Screen):
         
         content.add_widget(button_container)
         
-        scroll.add_widget(content)
-        main_layout.add_widget(scroll)
+        self.scroll.add_widget(content)
+        main_layout.add_widget(self.scroll)
         
         # Add layout to screen
         self.add_widget(main_layout)
+        
+        # Force scroll to top after the UI is built
+        from kivy.clock import Clock
+        Clock.schedule_once(self.scroll_to_top, 0.2)
+        
+    def scroll_to_top(self, *args):
+        """Scroll to the top of the view"""
+        if hasattr(self, 'scroll'):
+            # Force update of scroll view
+            self.scroll.update_from_scroll()
+            # Scroll to top
+            self.scroll.scroll_y = 1.0

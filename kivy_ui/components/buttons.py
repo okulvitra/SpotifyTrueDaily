@@ -42,12 +42,15 @@ class ModernButton(Button):
         
     def on_press_effect(self, *args):
         """Visual effect when button is pressed"""
-        # Animate color change
-        anim = Animation(
-            duration=0.1,
-            bg_color=COLORS['accent_hover_violet']
-        )
-        anim.start(self)
+        # Animate color change by updating the canvas
+        self.canvas.before.clear()
+        with self.canvas.before:
+            Color(*COLORS['accent_hover_violet'])
+            self.bg = RoundedRectangle(
+                pos=self.pos,
+                size=self.size,
+                radius=[dp(8)]
+            )
         
         # Reset color after a short delay
         from kivy.clock import Clock
@@ -55,6 +58,7 @@ class ModernButton(Button):
         
     def reset_color(self, *args):
         """Reset button color"""
+        self.canvas.before.clear()
         with self.canvas.before:
             Color(*COLORS['accent_violet'])
             self.bg = RoundedRectangle(

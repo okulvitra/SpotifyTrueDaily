@@ -11,7 +11,7 @@ from kivy.uix.widget import Widget
 from kivy.metrics import dp
 
 from kivy_ui.components.cards import ConfigCard
-from kivy_ui.components.sliders import ModernSlider
+from kivy_ui.components.stepper import Stepper
 from kivy_ui.components.buttons import ModernButton
 from kivy_ui.themes.colors import COLORS, FONTS
 
@@ -43,7 +43,7 @@ class PlaylistConfigScreen(Screen):
         main_layout.add_widget(header)
         
         # Content area with scroll
-        scroll = ScrollView()
+        self.scroll = ScrollView()
         content = BoxLayout(orientation='vertical', spacing=dp(20), size_hint_y=None)
         content.bind(minimum_height=content.setter('height'))
         
@@ -101,7 +101,7 @@ class PlaylistConfigScreen(Screen):
         
         for item in config_items:
             # Item layout
-            item_layout = BoxLayout(orientation='vertical', size_hint_y=None, height=dp(100))
+            item_layout = BoxLayout(orientation='vertical', size_hint_y=None, height=dp(140))
             
             # Title and description
             title_label = Label(
@@ -110,7 +110,7 @@ class PlaylistConfigScreen(Screen):
                 color=COLORS['text_primary'],
                 halign='left',
                 size_hint_y=None,
-                height=dp(25)
+                height=dp(30)
             )
             title_label.bind(size=title_label.setter('text_size'))
             item_layout.add_widget(title_label)
@@ -121,18 +121,18 @@ class PlaylistConfigScreen(Screen):
                 color=COLORS['text_secondary'],
                 halign='left',
                 size_hint_y=None,
-                height=dp(20)
+                height=dp(30)
             )
             desc_label.bind(size=desc_label.setter('text_size'))
             item_layout.add_widget(desc_label)
             
-            # Slider
-            slider = ModernSlider(
-                min=item["min"],
-                max=item["max"],
-                value=item["default"]
+            # Stepper
+            stepper = Stepper(
+                min_value=item["min"],
+                max_value=item["max"],
+                default_value=item["default"]
             )
-            item_layout.add_widget(slider)
+            item_layout.add_widget(stepper)
             
             config_card.add_widget(item_layout)
             
@@ -155,8 +155,20 @@ class PlaylistConfigScreen(Screen):
         
         content.add_widget(button_container)
         
-        scroll.add_widget(content)
-        main_layout.add_widget(scroll)
+        self.scroll.add_widget(content)
+        main_layout.add_widget(self.scroll)
         
         # Add layout to screen
         self.add_widget(main_layout)
+        
+        # Force scroll to top after the UI is built
+        from kivy.clock import Clock
+        Clock.schedule_once(self.scroll_to_top, 0.2)
+        
+    def scroll_to_top(self, *args):
+        """Scroll to the top of the view"""
+        if hasattr(self, 'scroll'):
+            # Force update of scroll view
+            self.scroll.update_from_scroll()
+            # Scroll to top
+            self.scroll.scroll_y = 1.0

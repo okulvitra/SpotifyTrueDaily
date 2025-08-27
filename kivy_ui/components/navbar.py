@@ -92,10 +92,13 @@ class Navbar(BoxLayout):
         
     def create_nav_items(self):
         """Create navigation items"""
+        # Using standard Unicode characters for better compatibility
+        # If you want to use custom icons, replace these with Image widgets
+        # and provide paths to your icon files (e.g., PNG, SVG)
         nav_items = [
-            {"text": "Dashboard", "screen": "dashboard", "icon": "🏠"},
-            {"text": "Playlist Configuration", "screen": "playlist_config", "icon": "🎵"},
-            {"text": "Settings", "screen": "settings", "icon": "⚙️"},
+            {"text": "Dashboard", "screen": "dashboard", "icon": "\u2302"},  # House icon
+            {"text": "Playlist Configuration", "screen": "playlist_config", "icon": "\u266B"},  # Music note icon
+            {"text": "Settings", "screen": "settings", "icon": "\u2699"},  # Gear icon
         ]
         
         # Create a group for the toggle buttons
