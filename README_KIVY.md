@@ -9,6 +9,7 @@ This branch explores a modern UI refactoring using Kivy instead of CustomTkinter
   - `screens/`: Directory for different app screens (dashboard, settings, etc.)
   - `components/`: Reusable UI components
   - `themes/`: Theme definitions and styling
+  - `utils/`: Utility functions and helpers
 - `kivy_requirements.txt`: Dependencies specific to Kivy implementation
 
 ## Getting Started
@@ -24,3 +25,4 @@ This branch explores a modern UI refactoring using Kivy instead of CustomTkinter
 - Core logic in `playlist_manager.py` remains unchanged
 - Configuration handling will be adapted for Kivy
 - Focus on modern design principles and cross-platform compatibility
+- Follows Kivy best practices for 2025

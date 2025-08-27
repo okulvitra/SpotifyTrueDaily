@@ -1,16 +1,24 @@
 """
-Main Kivy Application for SpotifyTrueDaily
+Modern Kivy Application for SpotifyTrueDaily
+Following best practices for 2025
 """
 
 import kivy
 from kivy.app import App
-from kivy.uix.screenmanager import ScreenManager, Screen
+from kivy.uix.screenmanager import ScreenManager, Screen, FadeTransition
 from kivy.uix.boxlayout import BoxLayout
+from kivy.uix.gridlayout import GridLayout
 from kivy.uix.label import Label
 from kivy.uix.button import Button
 from kivy.uix.textinput import TextInput
 from kivy.uix.popup import Popup
+from kivy.uix.scrollview import ScrollView
+from kivy.uix.widget import Widget
+from kivy.graphics import Color, Rectangle, RoundedRectangle
 from kivy.clock import Clock
+from kivy.properties import StringProperty, NumericProperty, BooleanProperty, ListProperty
+from kivy.metrics import dp
+from kivy.animation import Animation
 import threading
 import sys
 import os
@@ -36,22 +44,84 @@ from kivy_ui.screens.settings import SettingsScreen
 from kivy_ui.screens.playlist_config import PlaylistConfigScreen
 from kivy_ui.components.navbar import Navbar
 from kivy_ui.themes.colors import COLORS
+from kivy_ui.utils.helpers import show_toast
 
 kivy.require('2.3.0')
+
+class ModernButton(Button):
+    """Modern button with hover effects and rounded corners"""
+    
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.background_color = (0, 0, 0, 0)  # Transparent background
+        self.color = COLORS['text_primary']
+        self.height = dp(40)
+        self.size_hint_y = None
+        
+        with self.canvas.before:
+            Color(*COLORS['accent_violet'])
+            self.bg = RoundedRectangle(
+                pos=self.pos,
+                size=self.size,
+                radius=[dp(8)]
+            )
+            
+        self.bind(pos=self.update_bg, size=self.update_bg)
+        
+    def update_bg(self, *args):
+        """Update button background"""
+        self.bg.pos = self.pos
+        self.bg.size = self.size
+
+class ModernCard(BoxLayout):
+    """Modern card component with shadow effect"""
+    
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.orientation = 'vertical'
+        self.padding = dp(15)
+        self.spacing = dp(10)
+        self.size_hint_y = None
+        self.height = dp(150)
+        
+        with self.canvas.before:
+            # Shadow
+            Color(0, 0, 0, 0.3)
+            self.shadow = RoundedRectangle(
+                pos=(self.x + dp(2), self.y - dp(2)),
+                size=self.size,
+                radius=[dp(10)]
+            )
+            # Card background
+            Color(*COLORS['bg_secondary'])
+            self.bg = RoundedRectangle(
+                pos=self.pos,
+                size=self.size,
+                radius=[dp(10)]
+            )
+            
+        self.bind(pos=self.update_graphics, size=self.update_graphics)
+        
+    def update_graphics(self, *args):
+        """Update card graphics"""
+        self.shadow.pos = (self.x + dp(2), self.y - dp(2))
+        self.shadow.size = self.size
+        self.bg.pos = self.pos
+        self.bg.size = self.size
 
 class MainLayout(BoxLayout):
     """Main layout containing navbar and screen manager"""
     
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        self.orientation = 'vertical'
+        self.orientation = 'horizontal'
         
         # Create navbar
         self.navbar = Navbar(on_nav_item_pressed=self.on_nav_item_pressed)
         self.add_widget(self.navbar)
         
-        # Create screen manager
-        self.screen_manager = ScreenManager()
+        # Create screen manager with fade transition
+        self.screen_manager = ScreenManager(transition=FadeTransition())
         
         # Add screens
         self.dashboard_screen = DashboardScreen(name='dashboard')
@@ -78,8 +148,8 @@ class SpotifyTrueDailyKivyApp(App):
         
         # Set window size (optional, for desktop)
         from kivy.core.window import Window
-        Window.size = (1000, 750)
-        Window.minimum_width, Window.minimum_height = 800, 600
+        Window.size = (1200, 800)
+        Window.minimum_width, Window.minimum_height = 900, 600
         
         # Apply theme
         self.apply_theme()
@@ -97,16 +167,16 @@ class SpotifyTrueDailyKivyApp(App):
     def refresh_daily_playlist(self):
         """Refresh the daily playlist"""
         if not PLAYLIST_MANAGER_AVAILABLE:
-            self.show_error("Playlist manager not available")
+            show_toast("Playlist manager not available")
             return
             
         def refresh():
             try:
                 # This would be the actual playlist refresh logic
                 # For now, we'll just show a success message
-                self.show_success("Daily playlist refreshed successfully!")
+                show_toast("Daily playlist refreshed successfully!")
             except Exception as e:
-                self.show_error(f"Failed to refresh playlist: {str(e)}")
+                show_toast(f"Failed to refresh playlist: {str(e)}")
                 
         # Run in a separate thread to prevent UI freezing
         thread = threading.Thread(target=refresh)

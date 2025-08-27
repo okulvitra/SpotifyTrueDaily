@@ -1,11 +1,18 @@
 """
 Playlist configuration screen for the Kivy UI
+Following best practices for 2025
 """
 
 from kivy.uix.screenmanager import Screen
 from kivy.uix.boxlayout import BoxLayout
 from kivy.uix.label import Label
-from kivy.uix.slider import Slider
+from kivy.uix.scrollview import ScrollView
+from kivy.metrics import dp
+
+from kivy_ui.components.cards import ConfigCard
+from kivy_ui.components.sliders import ModernSlider
+from kivy_ui.components.buttons import ModernButton
+from kivy_ui.themes.colors import COLORS, FONTS
 
 class PlaylistConfigScreen(Screen):
     """Playlist configuration screen"""
@@ -16,49 +23,139 @@ class PlaylistConfigScreen(Screen):
         
     def create_ui(self):
         """Create the playlist configuration UI"""
-        layout = BoxLayout(orientation='vertical', padding=20, spacing=10)
+        # Main layout
+        main_layout = BoxLayout(orientation='vertical', padding=dp(20), spacing=dp(20))
         
-        # Title
-        title_label = Label(
+        # Header
+        header = BoxLayout(orientation='horizontal', size_hint_y=None, height=dp(50))
+        
+        title = Label(
             text="Playlist Configuration",
-            font_size=24,
-            size_hint_y=None,
-            height=50
+            font_size=FONTS['h1'],
+            color=COLORS['text_primary'],
+            halign='left',
+            valign='middle'
         )
-        layout.add_widget(title_label)
+        title.bind(size=title.setter('text_size'))
+        header.add_widget(title)
         
-        # Description
-        description_label = Label(
-            text="Configure how many tracks to include from each category in your daily playlist",
-            halign='center',
-            text_size=(self.width - 40, None)
+        main_layout.add_widget(header)
+        
+        # Content area with scroll
+        scroll = ScrollView()
+        content = BoxLayout(orientation='vertical', spacing=dp(20), size_hint_y=None)
+        content.bind(minimum_height=content.setter('height'))
+        
+        # Configuration Card
+        config_card = ConfigCard(
+            title="Content Configuration",
+            description="Configure how many tracks to include from each category in your daily playlist"
         )
-        layout.add_widget(description_label)
         
         # Configuration items
         config_items = [
-            ("Recent Tracks", "Number of recently played tracks to include"),
-            ("Top Tracks", "Number of your most popular tracks to include"),
-            ("Podcast Episodes", "Number of recent podcast episodes to include"),
-            ("Library Recommendations", "Number of random tracks from your library"),
-            ("SoundStat Recommendations", "Number of tracks recommended by SoundStat"),
-            ("SoundStat Seed Tracks", "Number of tracks to use as seeds for SoundStat recommendations")
+            {
+                "title": "Recent Tracks", 
+                "description": "Number of recently played tracks to include",
+                "min": 0,
+                "max": 20,
+                "default": 5
+            },
+            {
+                "title": "Top Tracks", 
+                "description": "Number of your most popular tracks to include",
+                "min": 0,
+                "max": 20,
+                "default": 5
+            },
+            {
+                "title": "Podcast Episodes", 
+                "description": "Number of recent podcast episodes to include",
+                "min": 0,
+                "max": 10,
+                "default": 3
+            },
+            {
+                "title": "Library Recommendations", 
+                "description": "Number of random tracks from your library",
+                "min": 0,
+                "max": 10,
+                "default": 2
+            },
+            {
+                "title": "SoundStat Recommendations", 
+                "description": "Number of tracks recommended by SoundStat",
+                "min": 0,
+                "max": 10,
+                "default": 3
+            },
+            {
+                "title": "SoundStat Seed Tracks", 
+                "description": "Number of tracks to use as seeds for SoundStat recommendations",
+                "min": 1,
+                "max": 5,
+                "default": 2
+            }
         ]
         
-        for title, description in config_items:
-            item_layout = BoxLayout(orientation='vertical', size_hint_y=None, height=80)
+        for item in config_items:
+            # Item layout
+            item_layout = BoxLayout(orientation='vertical', size_hint_y=None, height=dp(100))
             
             # Title and description
-            title_label = Label(text=title, font_size=16, size_hint_y=None, height=25)
-            desc_label = Label(text=description, font_size=12, size_hint_y=None, height=20)
+            title_label = Label(
+                text=item["title"],
+                font_size=FONTS['h3'],
+                color=COLORS['text_primary'],
+                halign='left',
+                size_hint_y=None,
+                height=dp(25)
+            )
+            title_label.bind(size=title_label.setter('text_size'))
             item_layout.add_widget(title_label)
+            
+            desc_label = Label(
+                text=item["description"],
+                font_size=FONTS['body'],
+                color=COLORS['text_secondary'],
+                halign='left',
+                size_hint_y=None,
+                height=dp(20)
+            )
+            desc_label.bind(size=desc_label.setter('text_size'))
             item_layout.add_widget(desc_label)
             
             # Slider
-            slider = Slider(min=0, max=20, value=5)
+            slider = ModernSlider(
+                min=item["min"],
+                max=item["max"],
+                value=item["default"]
+            )
             item_layout.add_widget(slider)
             
-            layout.add_widget(item_layout)
+            config_card.add_widget(item_layout)
+            
+        content.add_widget(config_card)
+        
+        # Save button
+        save_btn = ModernButton(
+            text="Save Configuration",
+            size_hint_x=None,
+            width=dp(200),
+            height=dp(50)
+        )
+        # In a full implementation, this would save the configuration
+        # save_btn.bind(on_press=self.save_config)
+        
+        button_container = BoxLayout(orientation='horizontal', size_hint_y=None, height=dp(50))
+        button_container.add_widget(Widget())  # Spacer
+        button_container.add_widget(save_btn)
+        button_container.add_widget(Widget())  # Spacer
+        
+        content.add_widget(button_container)
+        
+        scroll.add_widget(content)
+        main_layout.add_widget(scroll)
         
         # Add layout to screen
-        self.add_widget(layout)
+        self.add_widget(main_layout)
