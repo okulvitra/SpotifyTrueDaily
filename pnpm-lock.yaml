@@ -1,0 +1,22 @@
+lockfileVersion: '9.0'
+
+settings:
+  autoInstallPeers: true
+  excludeLinksFromLockfile: false
+
+importers:
+
+  .:
+    dependencies:
+      lucide-static:
+        specifier: ^0.542.0
+        version: 0.542.0
+
+packages:
+
+  lucide-static@0.542.0:
+    resolution: {integrity: sha512-jnXxFQYH0F24Nj5Zjje5jmMbGjClohnuSEYwTjAGuAa7UYDQiUjl0H7t4Ha19lkKryhCQA3VfeAJMjarrhzNZQ==}
+
+snapshots:
+
+  lucide-static@0.542.0: {}
