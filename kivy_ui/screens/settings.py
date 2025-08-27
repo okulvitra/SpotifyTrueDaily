@@ -9,6 +9,7 @@ from kivy.uix.gridlayout import GridLayout
 from kivy.uix.label import Label
 from kivy.uix.textinput import TextInput
 from kivy.uix.scrollview import ScrollView
+from kivy.uix.widget import Widget
 from kivy.metrics import dp
 
 from kivy_ui.components.cards import ConfigCard

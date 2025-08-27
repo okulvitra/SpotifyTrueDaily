@@ -7,6 +7,7 @@ from kivy.uix.boxlayout import BoxLayout
 from kivy.uix.button import Button
 from kivy.uix.togglebutton import ToggleButton
 from kivy.uix.image import Image
+from kivy.uix.widget import Widget
 from kivy.graphics import Color, Rectangle
 from kivy.metrics import dp
 from kivy_ui.themes.colors import COLORS
