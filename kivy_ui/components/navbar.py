@@ -12,17 +12,18 @@ from kivy.graphics import Color, Rectangle
 from kivy.metrics import dp
 from kivy_ui.themes.colors import COLORS
 
-class NavItem(ToggleButton):
+class NavItem(BoxLayout):
     """Navigation item with modern styling"""
     
-    def __init__(self, text, icon=None, **kwargs):
+    def __init__(self, text, icon_path=None, on_press=None, **kwargs):
         super().__init__(**kwargs)
-        self.text = text
-        self.group = 'nav'
+        self.orientation = 'horizontal'
         self.size_hint_y = None
         self.height = dp(50)
-        self.background_color = (0, 0, 0, 0)  # Transparent
-        self.color = COLORS['text_secondary']
+        self.spacing = dp(10)
+        self.padding = [dp(15), 0]
+        self.on_press_callback = on_press
+        self.is_active = False
         
         # Create background
         with self.canvas.before:
@@ -31,19 +32,46 @@ class NavItem(ToggleButton):
             
         self.bind(pos=self.update_bg, size=self.update_bg)
         
+        # Add icon if provided
+        if icon_path:
+            icon = Image(source=icon_path, size_hint_x=None, width=dp(24), height=dp(24))
+            # Remove deprecated properties
+            # icon.allow_stretch = True
+            # icon.keep_ratio = True
+            self.add_widget(icon)
+        
+        # Add text
+        self.text_label = Button(
+            text=text,
+            background_color=(0, 0, 0, 0),
+            color=COLORS['text_secondary'],
+            font_size='14sp',
+            halign='left',
+            text_size=(None, None)
+        )
+        self.text_label.bind(size=self.text_label.setter('text_size'))
+        self.text_label.bind(on_press=self.on_item_press)
+        self.add_widget(self.text_label)
+        
     def update_bg(self, *args):
         """Update background position and size"""
         self.bg.pos = self.pos
         self.bg.size = self.size
         
-    def on_state(self, instance, value):
-        """Change color based on state"""
-        if value == 'down':
-            self.color = COLORS['accent_violet']
+    def set_active(self, active):
+        """Set the active state of the navigation item"""
+        self.is_active = active
+        if active:
+            self.text_label.color = COLORS['accent_violet']
             self.bg_color.rgba = COLORS['bg_tertiary']
         else:
-            self.color = COLORS['text_secondary']
+            self.text_label.color = COLORS['text_secondary']
             self.bg_color.rgba = COLORS['bg_primary']
+            
+    def on_item_press(self, instance):
+        """Handle item press"""
+        if self.on_press_callback:
+            self.on_press_callback(None)
 
 class Navbar(BoxLayout):
     """Modern sidebar navigation"""
@@ -92,29 +120,37 @@ class Navbar(BoxLayout):
         
     def create_nav_items(self):
         """Create navigation items"""
-        # Using standard Unicode characters for better compatibility
-        # If you want to use custom icons, replace these with Image widgets
-        # and provide paths to your icon files (e.g., PNG, SVG)
+        # Using custom PNG icons for better compatibility
         nav_items = [
-            {"text": "Dashboard", "screen": "dashboard", "icon": "\u2302"},  # House icon
-            {"text": "Playlist Configuration", "screen": "playlist_config", "icon": "\u266B"},  # Music note icon
-            {"text": "Settings", "screen": "settings", "icon": "\u2699"},  # Gear icon
+            {"text": "Dashboard", "screen": "dashboard", "icon_path": "kivy_ui/assets/icons/home.png"},
+            {"text": "Playlist Configuration", "screen": "playlist_config", "icon_path": "kivy_ui/assets/icons/music.png"},
+            {"text": "Settings", "screen": "settings", "icon_path": "kivy_ui/assets/icons/settings.png"},
         ]
         
-        # Create a group for the toggle buttons
+        # Create navigation items
         self.nav_buttons = []
         
-        for item in nav_items:
+        for i, item in enumerate(nav_items):
+            # Create a wrapper function to capture the screen name correctly
+            def make_callback(screen_name=item["screen"]):
+                return lambda instance: self.on_item_press(screen_name)
+            
             nav_item = NavItem(
-                text=f"{item['icon']}  {item['text']}",
-                on_press=lambda x, screen=item["screen"]: self.on_item_press(screen)
+                text=item["text"],
+                icon_path=item["icon_path"],
+                on_press=make_callback()
             )
             self.nav_buttons.append(nav_item)
             self.add_widget(nav_item)
             
         # Set the first button as active by default
         if self.nav_buttons:
-            self.nav_buttons[0].state = 'down'
+            self.set_active_item(0)
+            
+    def set_active_item(self, index):
+        """Set the active navigation item"""
+        for i, button in enumerate(self.nav_buttons):
+            button.set_active(i == index)
             
     def create_footer(self):
         """Create navbar footer"""
